@@ -8,18 +8,6 @@ import cv2
 import numpy as np
 
 
-class Camera:
-    """
-    This class represents the camera with its 
-    intrinsic and distortion parameters.
-    """
-    def __init__(self,
-                 camera_matrix,
-                 dist_coeffs):
-        self.camera_matrix = camera_matrix
-        self.dist_coeffs = dist_coeffs
-
-
 class ArUcoGridGenerator:
     """
     This class generates a grid of ArUco markers 
@@ -28,11 +16,9 @@ class ArUcoGridGenerator:
     def __init__(self,
                  grid_size,
                  marker_length,
-                 camera,
                  padding=50):
         self.grid_size = grid_size
         self.marker_length = marker_length
-        self.camera = camera
         self.padding = padding
         self.aruco_dict = \
             cv2.aruco.getPredefinedDictionary(
@@ -119,16 +105,13 @@ class ArUcoProcessor:
     an ArUco marker grid.
     """
     def __init__(self,
-                 camera,
                  grid_size=(6, 6),
                  marker_length=0.05):
-        self.camera = camera
         self.grid_size = grid_size
         self.marker_length = marker_length
         self.grid_generator = ArUcoGridGenerator(
             grid_size=grid_size,
-            marker_length=marker_length,
-            camera=camera
+            marker_length=marker_length
         )
 
     def process(self,
@@ -153,23 +136,8 @@ class ArUcoProcessor:
 
 # Main script
 if __name__ == "__main__":
-    # Camera parameters
-    camera_matrix = np.array([
-        [1093.27, 0, 965.0],
-        [0, 1093.27, 569.0],
-        [0, 0, 1]
-    ], dtype=np.float32)
-    dist_coeffs = np.array(
-        [0.0, 0.0, 0.0, 0.0, 0.0],
-        dtype=np.float32
-    )
-
-    # Initialize the camera and processor.
-    camera = Camera(
-        camera_matrix=camera_matrix,
-        dist_coeffs=dist_coeffs
-    )
-    processor = ArUcoProcessor(camera=camera)
+    # Initialize the processor.
+    processor = ArUcoProcessor()
 
     # Generate the grid image.
     grid_image = processor.process(
@@ -179,6 +147,6 @@ if __name__ == "__main__":
 
     # Display and save the image.
     cv2.imshow("ArUco Grid", grid_image)
-    cv2.imwrite("aruco_grid.png", grid_image)
+    cv2.imwrite("test.png", grid_image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
