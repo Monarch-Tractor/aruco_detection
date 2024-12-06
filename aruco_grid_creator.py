@@ -1,3 +1,9 @@
+"""
+This script generates a grid of ArUco markers on 
+a white background.
+"""
+
+
 import cv2
 import numpy as np
 
