@@ -1,2 +1,2 @@
 # aruco_detection
-This repo contains python scripts to generate ArUco markers and detect their poses.
+This repo contains Python scripts to generate ArUco markers and detect their IDs and poses.
