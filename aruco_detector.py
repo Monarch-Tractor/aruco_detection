@@ -7,25 +7,8 @@ estimation on an input image.
 import cv2
 import numpy as np
 
+from camera import Camera
 
-class Camera:
-    """
-    This class represents the camera with its 
-    intrinsic and distortion parameters.
-    """
-    def __init__(self,
-                 camera_matrix,
-                 dist_coeffs):
-        """
-        This class initializes the camera with intrinsic 
-        matrix and distortion coefficients.
-
-        Input:
-            - camera_matrix: Intrinsic camera matrix
-            - dist_coeffs: Distortion coefficients
-        """
-        self.camera_matrix = camera_matrix
-        self.dist_coeffs = dist_coeffs
 
 class ArUcoDetector:
     """
@@ -101,7 +84,7 @@ class ArUcoDetector:
             success, rvec, tvec = cv2.solvePnP(
                 marker_points,
                 corner,
-                camera.camera_matrix,
+                camera.intrinsic_matrix,
                 camera.dist_coeffs
 
             )
@@ -140,7 +123,7 @@ class ArUcoDetector:
         # Draw axes using cv2.drawFrameAxes.
         cv2.drawFrameAxes(
             img,
-            camera.camera_matrix,
+            camera.intrinsic_matrix,
             camera.dist_coeffs,
             rvec,
             tvec,
@@ -258,30 +241,26 @@ class ArUcoProcessor:
 
 # Main script
 if __name__ == "__main__":
-    # Camera parameters
-    camera_matrix = np.array([
-        [1093.27,       0,  965.0],
-        [      0, 1093.27,  569.0],
-        [      0,       0,      1]
-    ], dtype=np.float32)
-    dist_coeffs = np.array(
-        [0.0, 0.0, 0.0, 0.0, 0.0],
-        dtype=np.float32
-    )
+    # Camera name
+    CAMERA_NAME = "zed_front"
+
+    # Camera information ROS topic
+    CAMERA_INFO_TOPIC = f"/{CAMERA_NAME}/camera_info"
 
     # Initialize camera and processor.
     camera = Camera(
-        camera_matrix=camera_matrix,
-        dist_coeffs=dist_coeffs
+        camera_name=CAMERA_NAME,
+        camera_info_topic=CAMERA_INFO_TOPIC,
+        use_default_intrinsics=True
     )
     processor = ArUcoProcessor(
         camera=camera
     )
 
     # Load the input image
-    in_img_path = "aruco_grid-in.png"
-    out_img_path = "aruco_grid-out.png"
-    in_img = cv2.imread(in_img_path)
+    IN_IMG_PATH = "aruco_grid-in.png"
+    OUT_IMG_PATH = "aruco_grid-out.png"
+    in_img = cv2.imread(IN_IMG_PATH)
 
     # Process the image.
     processed_img = processor.process_image(in_img)
@@ -291,6 +270,6 @@ if __name__ == "__main__":
         "ArUco Marker Detection and Pose Estimation",
         processed_img
     )
-    cv2.imwrite(out_img_path, processed_img)
+    cv2.imwrite(OUT_IMG_PATH, processed_img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
