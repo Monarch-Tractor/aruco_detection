@@ -236,7 +236,7 @@ class ArUcoProcessor:
             (x, y + 20),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
-            (0, 255, 0),
+            (124, 214, 166),
             2,
             cv2.LINE_AA
         )
