@@ -58,12 +58,15 @@ class Camera:
         )
 
         # Read camera information.
-        self.wait_for_information()
-        if not self.information_received:
-            msg = "Using default camera parameters because " + \
-               "no camera parameter information was received."
-            rospy.loginfo(msg)
-            self.use_default_intrinsics = True
+        if not self.use_default_intrinsics:
+            self.wait_for_information()
+            if not self.information_received:
+                msg = "Using default camera parameters because " + \
+                "no camera parameter information was received."
+                rospy.loginfo(msg)
+                self.use_default_intrinsics = True
+                self.use_default_camera_parameters()
+        else:
             self.use_default_camera_parameters()
 
         # Print camera information.

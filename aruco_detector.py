@@ -4,6 +4,11 @@ estimation on an input image.
 """
 
 
+from concurrent.futures import (
+    ThreadPoolExecutor,
+    wait
+)
+
 import cv2
 import numpy as np
 
@@ -31,20 +36,22 @@ class ArUcoDetector:
         self.aruco_detector = cv2.aruco.ArucoDetector(
             aruco_dict, parameters
         )
+        # Resized image
+        self.resized_img = None
 
-    def detect_markers(self,
-                       img):
+    def detect_markers(self):
         """
         This method detects ArUco markers in 
         the input image.
-        Input:
-            - img: Input image
 
         Output:
             - Detected marker corners, IDs, and 
               rejected points
         """
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        if self.resized_img is None:
+            raise ValueError("Resized image is not set yet.")
+
+        gray = cv2.cvtColor(self.resized_img, cv2.COLOR_BGR2GRAY)
         corners, ids, rejected_img_points = \
             self.aruco_detector.detectMarkers(gray)
         return (
@@ -54,50 +61,81 @@ class ArUcoDetector:
         )
 
     def estimate_pose(self,
-                      corners,
-                      marker_length,
-                      camera):
+                      corner,
+                      marker_points,
+                      intrinsic_matrix,
+                      dist_coeffs):
         """
-        This method estimates the pose of detected markers.
+        This method is a helper function to estimate pose for 
+        a single marker.
+
+        Input:
+            - corner: Detected marker corner
+            - marker_points: 3D coordinates of marker point
+            - intrinsic_matrix: Camera intrinsic parameters
+            - dist_coeffs: Camera distortion coefficients
+
+        Output:
+            - Rotation and translation vectors (rvec, tvec)
+        """
+        _, rvec, tvec = cv2.solvePnP(
+            marker_points,
+            corner,
+            intrinsic_matrix,
+            dist_coeffs
+        )
+        return rvec, tvec
+
+    def estimate_pose_multiple(self,
+                               corners,
+                               marker_length,
+                               intrinsic_matrix,
+                               distortion_vector):
+        """
+        This method estimates the poses of multiple markers
+        in the image.
 
         Input:
             - corners: Detected marker corners
             - marker_length: Physical length of the marker 
                   in meters
-            - camera: Camera object with intrinsic and 
-                  distortion parameters
+            - intrinsic_matrix: Camera intrinsic parameters
+            - distortion_vector: Camera distortion coefficients
         
         Output:
             - Rotation and translation vectors for each 
                   marker
         """
-        rvecs = []
-        tvecs = []
+        # Define the 3D coordinates of the marker points.
         marker_points = np.array([
             [[0, 0, 0]],  # Top-left corner as the origin
             [[0, marker_length, 0]],  # Bottom-left
             [[marker_length, marker_length, 0]],  # Bottom-right
             [[marker_length, 0, 0]]  # Top-right
         ], dtype=np.float32)
-        for corner in corners:
-            # Estimate the pose using solvePnP.
-            success, rvec, tvec = cv2.solvePnP(
-                marker_points,
-                corner,
-                camera.intrinsic_matrix,
-                camera.dist_coeffs
 
-            )
-            rvecs.append(rvec)
-            tvecs.append(tvec)
+        # Use ThreadPoolExecutor for parallel processing.
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(
+                lambda corner: self.estimate_pose(
+                    corner,
+                    marker_points,
+                    intrinsic_matrix,
+                    distortion_vector
+                ),
+                corners
+            ))
+
+        # Unpack results into rvecs and tvecs.
+        rvecs, tvecs = zip(*results)
 
         return rvecs, tvecs
 
     def draw_axes(self,
-                  img,
                   rvec,
                   tvec,
-                  camera,
+                  intrinsic_matrix,
+                  distortion_vector,
                   axis_length=0.05):
         """
         This method draws coordinate axes on the 
@@ -111,39 +149,33 @@ class ArUcoDetector:
             - axis_length: Length of the axes to be drawn
         """
         # Reshape rvec and tvec to ensure compatibility.
-        rvec = np.array(
-            rvec,
-            dtype=np.float32
-        ).reshape(1, 3)
-        tvec = np.array(
-            tvec,
-            dtype=np.float32
-        ).reshape(1, 3)
+        rvec = np.array(rvec, dtype=np.float32).reshape(1, 3)
+        tvec = np.array(tvec, dtype=np.float32).reshape(1, 3)
 
         # Draw axes using cv2.drawFrameAxes.
         cv2.drawFrameAxes(
-            img,
-            camera.intrinsic_matrix,
-            camera.dist_coeffs,
+            self.resized_img,
+            intrinsic_matrix,
+            distortion_vector,
             rvec,
             tvec,
             axis_length
         )
 
+        return
+
     def draw_detected_markers(self,
-                              img,
                               corners):
         """
         This method draws detected markers 
         on the image.
 
         Input:
-            - img: Input image
             - corners: Detected marker corners
         """
         # Draw detected markers on the resized image.
         cv2.aruco.drawDetectedMarkers(
-            img,
+            self.resized_img,
             corners
         )
         return
@@ -169,74 +201,101 @@ class ArUcoProcessor:
         self.marker_length = marker_length
         self.detector = ArUcoDetector()
 
-    def process_image(self,
-                      img):
+    def postprocess_marker_image(self,
+                                 rvec,
+                                 tvec,
+                                 corner,
+                                 marker_id):
         """
-        This metod detects markers, estimate poses, 
-        and overlay results on the image.
+        This method post-process a single marker by drawing 
+        its axes and overlaying its ID.
+
+        Input:
+            - rvec: Rotation vector
+            - tvec: Translation vector
+            - corner: Marker corner (used for text placement)
+            - marker_id: ID of the marker
+            - img: Resized image to overlay results
+
+        Output:
+            - None (modifies the image in place)
+        """
+        # Draw axes for the marker
+        self.detector.draw_axes(
+            rvec=rvec,
+            tvec=tvec,
+            intrinsic_matrix=self.camera.intrinsic_matrix,
+            distortion_vector=self.camera.distortion_vector
+        )
+
+        # Draw the marker ID below the detected marker
+        x, y = int(corner[0][0]), int(corner[0][1])  # Top-left corner
+        cv2.putText(
+            self.detector.resized_img,
+            str(marker_id),
+            (x, y + 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA
+        )
+
+        return
+
+    def process_image(self, img):
+        """
+        This method detects markers, estimates poses, and 
+        overlays results on the image.
 
         Input:
             - img: Input image
 
         Output:
-            - Processed image with detected markers and 
-              axes overlay
+            - Processed image with detected markers and axes 
+              overlay
         """
         # Resize the image to 1280 x 720.
-        resized_img = cv2.resize(img, (1280, 720))
+        self.detector.resized_img = cv2.resize(img, (1280, 720))
 
         # Detect markers in the resized image.
-        corners, ids, _ = \
-            self.detector.detect_markers(resized_img)
+        corners, ids, _ = self.detector.detect_markers()
 
-        # Print the detected markers
+        # Print the detected markers.
         print("Detected markers:", ids)
 
         if ids is not None:
             # Draw detected markers on the resized image.
-            self.detector.draw_detected_markers(
-                img=resized_img,
-                corners=corners
-            )
+            self.detector.draw_detected_markers(corners=corners)
 
-            # Estimate poses of detected markers.
-            rvecs, tvecs = self.detector.estimate_pose(
+            # Estimate poses of detected markers
+            rvecs, tvecs = self.detector.estimate_pose_multiple(
                 corners=corners,
                 marker_length=self.marker_length,
-                camera=self.camera
+                intrinsic_matrix=self.camera.intrinsic_matrix,
+                distortion_vector=self.camera.distortion_vector
             )
 
-            # Draw axes for each detected marker.
-            for i, (rvec, tvec) in enumerate(zip(rvecs, tvecs)):
-                self.detector.draw_axes(
-                    img=resized_img,
-                    rvec=rvec,
-                    tvec=tvec,
-                    camera=self.camera
-                )
+            # Use ThreadPoolExecutor for parallel processing.
+            with ThreadPoolExecutor() as executor:
+                # Submit tasks to the executor without passing
+                # the entire camera object.
+                futures = [
+                    executor.submit(
+                        self.postprocess_marker_image,
+                        rvec,
+                        tvec,
+                        corners[i][0],
+                        ids[i][0]
+                    )
+                    for i, (rvec, tvec) in enumerate(zip(rvecs, tvecs))
+                ]
 
-                # Draw the marker ID below the detected
-                # marker.
-                # Get the first corner for positioning
-                # the text.
-                corner = corners[i][0]
-                # Taking the top-left corner for text
-                # placement.
-                x, y = int(corner[0][0]), int(corner[0][1])
-                cv2.putText(
-                    resized_img,
-                    str(ids[i][0]),
-                    (x, y + 20),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 255, 0),
-                    2,
-                    cv2.LINE_AA
-                )
-
+                # Wait for all futures to complete.
+                wait(futures)
 
         # Return the resized and processed image.
-        return resized_img
+        return self.detector.resized_img
 
 
 # Main script
