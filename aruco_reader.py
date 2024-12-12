@@ -115,6 +115,8 @@ class ArUcoReader:
         self.lookup_static_transform()
 
         self.aruco_poses = {}
+        
+        # TODO: Add global pose of aruco markers using the detections, estimation and camera_pose
 
         # Get camera instance.
         self.camera = Camera(
