@@ -9,11 +9,15 @@ import numpy as np
 import cv2
 
 import rospy
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Bool
 from sensor_msgs.msg import CompressedImage
+from nav_msgs.msg import Odometry
 
 from camera import Camera
 from aruco_detector import ArUcoProcessor
+
+import tf2_ros
+import tf2_geometry_msgs
 
 
 class ArUcoIDPosePublisher:
@@ -81,7 +85,8 @@ class ArUcoReader:
                  camera_info_topic,
                  rgb_in_topic,
                  rgb_out_topic,
-                 rate_hz):
+                 rate_hz,
+                 service_topic):
         self.camera_name = camera_name
         self.camera_info_topic = camera_info_topic
 
@@ -89,6 +94,8 @@ class ArUcoReader:
         self.rgb_out_topic = rgb_out_topic
 
         self.rate_hz = rate_hz
+
+        self.sevice_topic = service_topic
 
         # Initialize the ROS node.
         rospy.init_node(
@@ -98,6 +105,16 @@ class ArUcoReader:
 
         # Define subscribers.
         self.get_subscribers()
+
+        # # Define the service call.
+        # self.set_services()
+
+        # Initialize the tf buffer.
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.lookup_static_transform()
+
+        self.aruco_poses = {}
 
         # Get camera instance.
         self.camera = Camera(
@@ -131,6 +148,28 @@ class ArUcoReader:
             data_class=CompressedImage,
             callback=self.rgb_topic_callback
         )
+
+        self.initialize_aruco_pose_service = rospy.Subscriber(
+            name=self.service_topic,
+            data_class=Bool,
+            callback=self.initialize_aruco_pose_callback
+        )
+        
+        self.localization_subscriber = rospy.Subscriber(
+            name=self.localization_topic,
+            data_class=Odometry,
+            callback=self.localization_callback
+        )
+        return
+
+    def initialize_aruco_pose_service(self, msg):
+        """
+        This method initializes the ArUco pose.
+        """
+        if msg.data:
+
+            rospy.loginfo("Initializing ArUco pose.")
+            self.aruco_processor.initialize_aruco_pose()
         return
 
     def decode_image(self, msg):
@@ -149,6 +188,22 @@ class ArUcoReader:
             flags=cv2.IMREAD_COLOR
         )
         return img
+    
+    def lookup_static_transform(self):
+        try:
+            self.baselink_to_camera = self.tf_buffer.lookup_transform(
+                self.baselink_frame, self.camera_frame, rospy.Time(0), rospy.Duration(5.0)
+            )
+            rospy.loginfo("Static transform from /baselink to /camera obtained.")
+        except tf2_ros.LookupException as e:
+            rospy.logerr(f"Failed to lookup static transform: {e}")
+        return
+    
+    def localization_callback(self, msg):
+        self.baselink_pose = msg.pose.pose
+        self.camera_pose = tf2_geometry_msgs.do_transform_pose(self.baselink_pose, self.baselink_to_camera)
+        return
+
 
     def rgb_topic_callback(self, rgb_msg):
         """
@@ -217,6 +272,14 @@ if __name__ == '__main__':
     RGB_IN_TOPIC = "/zed_front/image/compressed"
     RGB_OUT_TOPIC = "/aruco_reader/zed_front/id_pose/image/compressed"
 
+    # Service call topic to initialize the aruco pose
+    SERVICE_TOPIC = "/initialize_aruco_pose"
+
+    # Localization topics
+    LOCALIZATION_TOPIC = "/Localization/odometry/filtered_map"
+    TF_STATIC_TOPIC = "/tf_static"
+
+
     RATE_HZ = 10  # replace with your desired publishing rate.
 
     # Initialize the ArUco reader ROS node.
@@ -225,7 +288,8 @@ if __name__ == '__main__':
         camera_info_topic=CAMERA_INFO_TOPIC,
         rgb_in_topic=RGB_IN_TOPIC,
         rgb_out_topic=RGB_OUT_TOPIC,
-        rate_hz=RATE_HZ
+        rate_hz=RATE_HZ,
+        service_topic = SERVICE_TOPIC
     )
 
     # Run the ArUco reader node.
