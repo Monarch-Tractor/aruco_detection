@@ -18,6 +18,21 @@ from aruco_detector import ArUcoProcessor
 
 import tf2_ros
 import tf2_geometry_msgs
+from scipy.spatial.transform import Rotation as R
+
+
+def pose_to_rvec_tvec(pose):
+    # Extract translation vector (tvec)
+    tvec = np.array([pose.position.x, pose.position.y, pose.position.z], dtype=np.float64)
+    
+    # Extract quaternion
+    quaternion = [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
+    
+    # Convert quaternion to rotation vector (rvec)
+    rotation = R.from_quat(quaternion)
+    rvec = rotation.as_rotvec()  # Directly gives rvec as a 3x1 vector
+    
+    return rvec.reshape(3, 1), tvec
 
 
 class ArUcoIDPosePublisher:
@@ -115,8 +130,6 @@ class ArUcoReader:
         self.lookup_static_transform()
 
         self.aruco_poses = {}
-        
-        # TODO: Add global pose of aruco markers using the detections, estimation and camera_pose
 
         # Get camera instance.
         self.camera = Camera(
@@ -171,7 +184,9 @@ class ArUcoReader:
         if msg.data:
 
             rospy.loginfo("Initializing ArUco pose.")
-            self.aruco_processor.initialize_aruco_pose()
+            rvec, tvec = pose_to_rvec_tvec(self.camera_pose)
+            self.aruco_processor.initialize_aruco_poses(rvec, tvec)
+            self.aruco_poses = self.aruco_processor.get_global_poses()
         return
 
     def decode_image(self, msg):

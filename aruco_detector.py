@@ -11,9 +11,58 @@ from concurrent.futures import (
 
 import cv2
 import numpy as np
+import tf2_ros
+import tf2_geometry_msgs
+from scipy.spatial.transform import Rotation as R
+from geometry_msgs.msg import Pose
+
 
 from camera import Camera
 
+
+def rvec_tvec_to_pose(rvec, tvec):
+    """
+    This method converts the rotation and translation vectors 
+    to a pose message.
+
+    Input:
+        - rvec: Rotation vector
+        - tvec: Translation vector
+
+    Output:
+        - Pose message
+    """
+    # Convert rvec to quaternion
+    rotation = R.from_rotvec(rvec.flatten())
+    quaternion = rotation.as_quat()
+
+    # Create the pose message
+    pose = Pose()
+    pose.position.x = tvec[0]
+    pose.position.y = tvec[1]
+    pose.position.z = tvec[2]
+    pose.orientation.x = quaternion[0]
+    pose.orientation.y = quaternion[1]
+    pose.orientation.z = quaternion[2]
+    pose.orientation.w = quaternion[3]
+
+    return pose
+
+def transform_object_to_global(rvec_camera, tvec_camera, rvec_object_camera, tvec_object_camera):
+    # Convert rvecs to rotation matrices
+    R_camera, _ = cv2.Rodrigues(rvec_camera)
+    R_object_camera, _ = cv2.Rodrigues(rvec_object_camera)
+    
+    # Compute global rotation
+    R_object_global = R_camera @ R_object_camera
+    
+    # Compute global translation
+    t_object_global = R_camera @ tvec_object_camera + tvec_camera
+    
+    # Convert rotation matrix back to rvec
+    rvec_object_global, _ = cv2.Rodrigues(R_object_global)
+    
+    return rvec_object_global, t_object_global
 
 class ArUcoDetector:
     """
@@ -200,6 +249,8 @@ class ArUcoProcessor:
         self.camera = camera
         self.marker_length = marker_length
         self.detector = ArUcoDetector()
+        self.relative_poses = {}
+        self.global_poses = {}
 
     def postprocess_marker_image(self,
                                  rvec,
@@ -277,6 +328,7 @@ class ArUcoProcessor:
             )
 
             # Use ThreadPoolExecutor for parallel processing.
+            
             with ThreadPoolExecutor() as executor:
                 # Submit tasks to the executor without passing
                 # the entire camera object.
@@ -293,9 +345,60 @@ class ArUcoProcessor:
 
                 # Wait for all futures to complete.
                 wait(futures)
+        
+        self.relative_poses = {}
+        for i, (rvec, tvec) in enumerate(zip(rvecs, tvecs)):
+            id = ids[i][0]
+            self.relative_poses[id] = (rvec, tvec)
 
         # Return the resized and processed image.
         return self.detector.resized_img
+
+    def get_relative_poses(self):
+        """
+        This method returns the relative poses of the 
+        detected markers.
+
+        Output:
+            - Relative poses of the detected markers
+        """
+        return self.relative_poses
+    
+    def initialize_aruco_poses(self, c_rvec, c_tvec):
+        """
+        This method initializes the ArUco poses with the 
+        given camera rotation and translation vectors.
+        """
+        for id in self.relative_poses:
+            rvec, tvec = self.relative_poses[id]
+            rvec_global, tvec_global = transform_object_to_global(c_rvec, c_tvec, rvec, tvec)
+            self.global_poses[id] = (rvec_global, tvec_global)
+
+        return
+
+    def get_global_poses(self):
+        """
+        This method returns the global poses of the 
+        detected markers.
+
+        Output:
+            - Global poses of the detected markers
+        """
+        return self.global_poses
+    
+    def get_camera_pose_estimate(self):
+        """
+        This method returns the camera pose estimate 
+        based on the detected ArUco markers.
+
+        Output:
+            - Camera pose estimate
+        """
+        # Get the camera pose estimate from the camera object.
+        raise NotImplementedError("Method not implemented yet.")
+        
+        return
+
 
 
 # Main script
