@@ -131,6 +131,8 @@ class ArUcoReader:
 
         self.aruco_poses = {}
 
+        # TODO: Add methods for estimating the camera pose from detected markers
+
         # Get camera instance.
         self.camera = Camera(
             camera_name=self.camera_name,

@@ -228,6 +228,8 @@ class ArUcoDetector:
             corners
         )
         return
+    
+# TODO: Add methods for estimating the camera pose from detected markers
 
 class ArUcoProcessor:
     """
