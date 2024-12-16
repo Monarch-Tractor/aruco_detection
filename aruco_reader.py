@@ -204,7 +204,7 @@ class ArUcoReader:
         )
         return
 
-    def initialize_aruco_pose_service(self, msg):
+    def initialize_aruco_pose_callback(self, msg):
         """
         This method initializes the ArUco pose.
         """
