@@ -102,7 +102,7 @@ class ArUcoReader:
                  rgb_out_topic,
                  rate_hz,
                  service_topic,
-                 localizatoin_topic,
+                 localization_topic,
                  tf_static_topic):
         self.camera_name = camera_name
         self.camera_info_topic = camera_info_topic
@@ -113,7 +113,7 @@ class ArUcoReader:
         self.rate_hz = rate_hz
 
         self.service_topic = service_topic
-        self.localization_topic = localizatoin_topic
+        self.localization_topic = localization_topic
         self.tf_static_topic = tf_static_topic
 
         self.relative_pose_topic = "/aruco_reader/relative_pose"
