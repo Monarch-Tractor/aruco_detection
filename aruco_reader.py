@@ -359,7 +359,7 @@ if __name__ == '__main__':
         rate_hz=RATE_HZ,
         service_topic = SERVICE_TOPIC,
         localization_topic = LOCALIZATION_TOPIC,
-        rf_static_topic = TF_STATIC_TOPIC
+        tf_static_topic = TF_STATIC_TOPIC
     )
 
     # Run the ArUco reader node.
