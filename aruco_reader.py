@@ -115,7 +115,7 @@ class ArUcoReader:
         self.relative_pose_topic = "/aruco_reader/relative_pose"
         self.global_pose_topic = "/aruco_reader/global_pose"
 
-        self.camera_frame = 'zed_front_left_cam'
+        self.camera_frame = 'zed_front_left_img'
         self.baselink_frame = 'base_link'
 
         # Initialize the ROS node.
@@ -309,7 +309,7 @@ class ArUcoReader:
             if global_pose is not None:
                 odom_message = Odometry()
                 odom_message.header.frame_id = "map"
-                odom_message.child_frame_id = "zed_front_left_cam"
+                odom_message.child_frame_id = "zed_front_left_img"
                 odom_message.header.stamp = rospy.Time.now()
                 odom_message.pose.pose = global_pose
 
@@ -318,7 +318,7 @@ class ArUcoReader:
                 
                 odom_message = Odometry()
                 odom_message.header.frame_id = "map"
-                odom_message.child_frame_id = "zed_front_left_cam"
+                odom_message.child_frame_id = "zed_front_left_img"
                 odom_message.header.stamp = rospy.Time.now()
                 odom_message.pose.pose = relative_pose
 
