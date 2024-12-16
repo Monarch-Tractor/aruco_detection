@@ -110,7 +110,7 @@ class ArUcoReader:
 
         self.rate_hz = rate_hz
 
-        self.sevice_topic = service_topic
+        self.service_topic = service_topic
 
         self.relative_pose_topic = "/aruco_reader/relative_pose"
         self.global_pose_topic = "/aruco_reader/global_pose"
