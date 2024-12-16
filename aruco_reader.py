@@ -101,7 +101,9 @@ class ArUcoReader:
                  rgb_in_topic,
                  rgb_out_topic,
                  rate_hz,
-                 service_topic):
+                 service_topic,
+                 localizatoin_topic,
+                 tf_static_topic):
         self.camera_name = camera_name
         self.camera_info_topic = camera_info_topic
 
@@ -111,6 +113,8 @@ class ArUcoReader:
         self.rate_hz = rate_hz
 
         self.service_topic = service_topic
+        self.localization_topic = localizatoin_topic
+        self.tf_static_topic = tf_static_topic
 
         self.relative_pose_topic = "/aruco_reader/relative_pose"
         self.global_pose_topic = "/aruco_reader/global_pose"
@@ -353,7 +357,9 @@ if __name__ == '__main__':
         rgb_in_topic=RGB_IN_TOPIC,
         rgb_out_topic=RGB_OUT_TOPIC,
         rate_hz=RATE_HZ,
-        service_topic = SERVICE_TOPIC
+        service_topic = SERVICE_TOPIC,
+        localization_topic = LOCALIZATION_TOPIC,
+        rf_static_topic = TF_STATIC_TOPIC
     )
 
     # Run the ArUco reader node.
