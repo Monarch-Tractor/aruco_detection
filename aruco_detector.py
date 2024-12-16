@@ -64,6 +64,49 @@ def transform_object_to_global(rvec_camera, tvec_camera, rvec_object_camera, tve
     
     return rvec_object_global, t_object_global
 
+def transform_camera_to_global(rvec_object_camera, tvec_object_camera, rvec_object_global, tvec_object_global):
+    # Convert rvecs to rotation matrices
+    R_object_camera, _ = cv2.Rodrigues(rvec_object_camera)
+    R_object_global, _ = cv2.Rodrigues(rvec_object_global)
+    
+    # Compute camera rotation
+    R_camera = R_object_global.T @ R_object_camera
+    
+    # Compute camera translation
+    t_camera = R_object_global.T @ (tvec_object_camera - tvec_object_global)
+    
+    # Convert rotation matrix back to rvec
+    rvec_camera, _ = cv2.Rodrigues(R_camera)
+    
+    return rvec_camera, t_camera
+
+def convert_rvec_tvec_to_pose(rvec, tvec):
+    """
+    This method converts the rotation and translation vectors 
+    to a pose message.
+
+    Input:
+        - rvec: Rotation vector
+        - tvec: Translation vector
+
+    Output:
+        - Pose message
+    """
+    # Convert rvec to quaternion
+    rotation = R.from_rotvec(rvec.flatten())
+    quaternion = rotation.as_quat()
+
+    # Create the pose message
+    pose = Pose()
+    pose.position.x = tvec[0]
+    pose.position.y = tvec[1]
+    pose.position.z = tvec[2]
+    pose.orientation.x = quaternion[0]
+    pose.orientation.y = quaternion[1]
+    pose.orientation.z = quaternion[2]
+    pose.orientation.w = quaternion[3]
+
+    return pose
 class ArUcoDetector:
     """
     This class handles the detection of 
@@ -254,6 +297,15 @@ class ArUcoProcessor:
         self.relative_poses = {}
         self.global_poses = {}
 
+        self.camera_pose = Pose()
+        self.camera_pose.position.x = 0
+        self.camera_pose.position.y = 0
+        self.camera_pose.position.z = 0
+        self.camera_pose.orientation.x = 0
+        self.camera_pose.orientation.y = 0
+        self.camera_pose.orientation.z = 0
+        self.camera_pose.orientation.w = 1
+
     def postprocess_marker_image(self,
                                  rvec,
                                  tvec,
@@ -352,6 +404,8 @@ class ArUcoProcessor:
         for i, (rvec, tvec) in enumerate(zip(rvecs, tvecs)):
             id = ids[i][0]
             self.relative_poses[id] = (rvec, tvec)
+        
+        self.camera_pose = self.set_camera_pose_estimate()
 
         # Return the resized and processed image.
         return self.detector.resized_img
@@ -364,7 +418,13 @@ class ArUcoProcessor:
         Output:
             - Relative poses of the detected markers
         """
-        return self.relative_poses
+        relative_pose = None
+        for id in self.relative_poses:
+            rvec, tvec = self.relative_poses[id]
+            relative_pose = rvec_tvec_to_pose(rvec, tvec)
+            break
+
+        return relative_pose
     
     def initialize_aruco_poses(self, c_rvec, c_tvec):
         """
@@ -388,6 +448,26 @@ class ArUcoProcessor:
         """
         return self.global_poses
     
+    def set_camera_pose_estimate(self):
+        """
+        This method returns the camera pose estimate 
+        based on the detected ArUco markers.
+
+        Output:
+            - Camera pose estimate
+        """
+        # Get the relative poses of the detected markers.
+        ids = list(self.global_poses.keys())
+        for id in ids:
+            if id in self.relative_poses:
+                rvec, tvec = self.relative_poses[id]
+                c_rvec, c_tvec = transform_camera_to_global(rvec, tvec, self.global_poses[id][0], self.global_poses[id][1])
+        
+        if len(ids) != 0:
+            self.camera_pose = rvec_tvec_to_pose(c_rvec, c_tvec)
+
+        return
+    
     def get_camera_pose_estimate(self):
         """
         This method returns the camera pose estimate 
@@ -396,10 +476,8 @@ class ArUcoProcessor:
         Output:
             - Camera pose estimate
         """
-        # Get the camera pose estimate from the camera object.
-        raise NotImplementedError("Method not implemented yet.")
-        
-        return
+        return self.camera_pose
+
 
 
 

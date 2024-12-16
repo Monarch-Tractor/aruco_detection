@@ -112,6 +112,12 @@ class ArUcoReader:
 
         self.sevice_topic = service_topic
 
+        self.relative_pose_topic = "/aruco_reader/relative_pose"
+        self.global_pose_topic = "/aruco_reader/global_pose"
+
+        self.camera_frame = 'zed_front_left_cam'
+        self.baselink_frame = 'base_link'
+
         # Initialize the ROS node.
         rospy.init_node(
             name="aruco_marker_reader_node",
@@ -119,7 +125,8 @@ class ArUcoReader:
         )
 
         # Define subscribers.
-        self.get_subscribers()
+        self.set_subscribers()
+        self.set_publishers()
 
         # # Define the service call.
         # self.set_services()
@@ -155,8 +162,26 @@ class ArUcoReader:
 
         # Output data attribute.
         self.rgb_out = None
+    
+    def set_publishers(self):
+        """
+        This method defines the different publishers.
+        """
+        self.relative_pose_publisher = rospy.Publisher(
+            name=self.relative_pose_topic,
+            data_class=Odometry,
+            queue_size=10
+        )
 
-    def get_subscribers(self):
+        self.global_pose_publisher = rospy.Publisher(
+            name=self.global_pose_topic,
+            data_class=Odometry,
+            queue_size=10
+        )
+
+        return
+
+    def set_subscribers(self):
         """
         This method defines the different subscribers.
         """
@@ -279,6 +304,26 @@ class ArUcoReader:
             self.aruco_id_pose_publisher.publish_output(
                 rgb_out_msg=rgb_out_encoded
             )
+
+            global_pose = self.aruco_processor.get_camera_pose_estimate()
+            if global_pose is not None:
+                odom_message = Odometry()
+                odom_message.header.frame_id = "map"
+                odom_message.child_frame_id = "zed_front_left_cam"
+                odom_message.header.stamp = rospy.Time.now()
+                odom_message.pose.pose = global_pose
+
+            relative_pose = self.aruco_processor.get_relative_poses()
+            if relative_pose is not None:
+                
+                odom_message = Odometry()
+                odom_message.header.frame_id = "map"
+                odom_message.child_frame_id = "zed_front_left_cam"
+                odom_message.header.stamp = rospy.Time.now()
+                odom_message.pose.pose = relative_pose
+
+                self.relative_pose_publisher.publish(odom_message)
+
         return
 
 
