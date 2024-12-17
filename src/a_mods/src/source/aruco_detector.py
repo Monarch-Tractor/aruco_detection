@@ -24,8 +24,8 @@ from .camera import Camera
 
 def rvec_tvec_to_pose(rvec, tvec):
     """
-    This method converts the rotation and translation vectors 
-    to a pose message.
+    This method converts the rotation and translation 
+    vectors to a pose message.
 
     Input:
         - rvec: Rotation vector
@@ -62,16 +62,16 @@ def transform_object_to_global(rvec_camera,
     # Convert rvecs to rotation matrices
     R_camera, _ = cv2.Rodrigues(rvec_camera)
     R_object_camera, _ = cv2.Rodrigues(rvec_object_camera)
-    
+
     # Compute global rotation
     R_object_global = R_camera @ R_object_camera
-    
+
     # Compute global translation
     t_object_global = R_camera @ tvec_object_camera + tvec_camera
-    
+
     # Convert rotation matrix back to rvec
     rvec_object_global, _ = cv2.Rodrigues(R_object_global)
-    
+
     return (
         rvec_object_global,
         t_object_global
@@ -89,22 +89,25 @@ def transform_camera_to_global(rvec_object_camera,
     # Convert rvecs to rotation matrices
     R_object_camera, _ = cv2.Rodrigues(rvec_object_camera)
     R_object_global, _ = cv2.Rodrigues(rvec_object_global)
-    
+
     # Compute camera rotation
     R_camera = R_object_global.T @ R_object_camera
-    
+
     # Compute camera translation
-    t_camera = R_object_global.T @ (tvec_object_camera - tvec_object_global)
-    
+    t_camera = R_object_global.T @ (
+        tvec_object_camera - tvec_object_global
+    )
+
     # Convert rotation matrix back to rvec
     rvec_camera, _ = cv2.Rodrigues(R_camera)
-    
+
     return rvec_camera, t_camera
+
 
 def convert_rvec_tvec_to_pose(rvec, tvec):
     """
-    This method converts the rotation and translation vectors 
-    to a pose message.
+    This method converts the rotation and translation 
+    vectors to a pose message.
 
     Input:
         - rvec: Rotation vector
@@ -132,8 +135,9 @@ def convert_rvec_tvec_to_pose(rvec, tvec):
 
 class ArUcoProcessor:
     """
-    This class handles the detection of ArUco markers, pose estimation,
-    and camera pose estimation based on the detected markers.
+    This class handles the detection of ArUco markers, 
+    pose estimation, and camera pose estimation based 
+    on the detected markers.
     """
     def __init__(self,
                  camera,
@@ -145,16 +149,20 @@ class ArUcoProcessor:
 
         Input:
             - camera: Camera object
-            - marker_length: Physical length of the marker in meters
+            - marker_length: Physical length of the marker 
+                  in meters
             - aruco_dict_type: Type of ArUco dictionary
         """
         self.camera = camera
         self.marker_length = marker_length
 
         # Initialize ArUco detector
-        aruco_dict = cv2.aruco.getPredefinedDictionary(aruco_dict_type)
-        parameters = cv2.aruco.DetectorParameters()
-        self.aruco_detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+        aruco_dict = \
+            cv2.aruco.getPredefinedDictionary(aruco_dict_type)
+        parameters = \
+            cv2.aruco.DetectorParameters()
+        self.aruco_detector = \
+            cv2.aruco.ArucoDetector(aruco_dict, parameters)
 
         # Resized image
         self.resized_img = None
@@ -305,8 +313,8 @@ class ArUcoProcessor:
                                  corner,
                                  marker_id):
         """
-        This method post-processes a single marker by 
-        drawing its axes and overlaying its ID.
+        This method post-processes a single marker by drawing 
+        its axes and overlaying its ID.
 
         Input:
             - rvec: Rotation vector
@@ -335,14 +343,15 @@ class ArUcoProcessor:
 
     def process_image(self, img):
         """
-        This method detect markers, estimates poses, and 
-        overlays results on the image.
+        This method detect markers, estimates poses, and overlays 
+        results on the image.
 
         Input:
             - img: Input image
 
         Output:
-            - Processed image with detected markers and axes overlay
+            - Processed image with detected markers and axes 
+                  overlay
         """
         self.resized_img = cv2.resize(img, (1280, 720))
         corners, ids, _ = self.detect_markers()
@@ -443,13 +452,17 @@ class ArUcoProcessor:
         return self.camera_pose
 
 
-# Main script
+# Main driver code
 if __name__ == "__main__":
     CAMERA_NAME = "zed_front"
     CAMERA_INFO_TOPIC = f"/{CAMERA_NAME}/camera_info"
 
     # Initialize camera and processor
-    camera = Camera(camera_name=CAMERA_NAME, camera_info_topic=CAMERA_INFO_TOPIC, use_default_intrinsics=True)
+    camera = Camera(
+        camera_name=CAMERA_NAME,
+        camera_info_topic=CAMERA_INFO_TOPIC,
+        use_default_intrinsics=True
+    )
     processor = ArUcoProcessor(camera=camera)
 
     # Load input image
@@ -461,7 +474,10 @@ if __name__ == "__main__":
     processed_img = processor.process_image(in_img)
 
     # Display and save the results
-    cv2.imshow("ArUco Marker Detection and Pose Estimation", processed_img)
+    cv2.imshow(
+        "ArUco Marker Detection and Pose Estimation", 
+        processed_img
+    )
     cv2.imwrite(OUT_IMG_PATH, processed_img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
