@@ -230,7 +230,6 @@ class ArUcoApp:
         This method initializes the ArUco pose.
         """
         if msg.data:
-
             rospy.loginfo("Initializing ArUco pose.")
             rvec, tvec = pose_to_rvec_tvec(pose=self.camera_pose)
             self.aruco_processor.initialize_aruco_poses(
@@ -288,7 +287,7 @@ class ArUcoApp:
         odometry message is received, and the received
         message is used to update the camera pose.
         """
-        self.baselink_pose = msg.pose.pose
+        self.baselink_pose = msg.pose
         self.camera_pose = tf2_geometry_msgs.do_transform_pose(
             pose=self.baselink_pose,
             transform=self.baselink_to_camera
@@ -359,6 +358,7 @@ class ArUcoApp:
                 odom_message.child_frame_id = "zed_front_left_img"
                 odom_message.header.stamp = rospy.Time.now()
                 odom_message.pose.pose = global_pose
+                self.global_pose_publisher.publish(odom_message)
 
             relative_pose = self.aruco_processor.get_relative_poses()
             if relative_pose is not None:
@@ -368,7 +368,6 @@ class ArUcoApp:
                 odom_message.child_frame_id = "zed_front_left_img"
                 odom_message.header.stamp = rospy.Time.now()
                 odom_message.pose.pose = relative_pose
-
                 self.relative_pose_publisher.publish(odom_message)
 
         return

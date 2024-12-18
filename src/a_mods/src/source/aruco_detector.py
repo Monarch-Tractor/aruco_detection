@@ -59,7 +59,7 @@ class ArUcoDetector:
                       corner,
                       marker_points,
                       intrinsic_matrix,
-                      dist_coeffs):
+                      distortion_vector):
         """
         This method is a helper function to estimate pose for 
         a single marker.
@@ -68,7 +68,7 @@ class ArUcoDetector:
             - corner: Detected marker corner
             - marker_points: 3D coordinates of marker point
             - intrinsic_matrix: Camera intrinsic parameters
-            - dist_coeffs: Camera distortion coefficients
+            - distortion_vector: Camera distortion coefficients
 
         Output:
             - Rotation and translation vectors (rvec, tvec)
@@ -77,7 +77,7 @@ class ArUcoDetector:
             marker_points,
             corner,
             intrinsic_matrix,
-            dist_coeffs
+            distortion_vector
         )
         return rvec, tvec
 
