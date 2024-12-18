@@ -19,7 +19,7 @@ import tf2_geometry_msgs
 from scipy.spatial.transform import Rotation as R
 
 from source.camera import Camera
-from source.aruco_detector import ArUcoProcessor
+from source.aruco_processor import ArUcoProcessor
 
 
 def pose_to_rvec_tvec(pose):
