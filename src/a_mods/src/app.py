@@ -1,6 +1,6 @@
 """
 This script contains the class definition for the 
-ArUco application. The ArUcoApp class reads input images
+ArUco application. The App class reads input images
 from a ROS topic, processes the images using the ArUco
 marker detection and pose estimation algorithm, and
 publishes the output as ROS messages.
@@ -19,7 +19,8 @@ import tf2_geometry_msgs
 from scipy.spatial.transform import Rotation as R
 
 from source.camera import Camera
-from source.aruco_processor import ArUcoProcessor
+from source.processor import Processor
+from source.io_handler import Input, Output
 
 
 def pose_to_rvec_tvec(pose):
@@ -53,7 +54,7 @@ def pose_to_rvec_tvec(pose):
     )
 
 
-class ArUcoIDPosePublisher:
+class IDPosePublisher:
     """
     This class listens to the ROS topic publishing
     the images with ArUco markers and publishes the
@@ -78,7 +79,7 @@ class ArUcoIDPosePublisher:
         return
 
     def encode_image(self, img, timestamp):
-        """
+        """aruco_id_pose_publisher.py
         This method encodes a numpy array of an image into a 
         sensor_msgs/CompressedImage message.
         """
@@ -105,7 +106,7 @@ class ArUcoIDPosePublisher:
         return
 
 
-class ArUcoApp:
+class App:
     """
     This class defines the ArUco application that reads
     input images from a ROS topic, processes the images
@@ -168,18 +169,21 @@ class ArUcoApp:
         )
 
         # Get ArUco processor instance.
-        self.aruco_processor = ArUcoProcessor(
+        self.aruco_processor = Processor(
             camera=self.camera
         )
 
         # Publishers for the topics.
-        self.aruco_id_pose_publisher = ArUcoIDPosePublisher(
+        self.aruco_id_pose_publisher = IDPosePublisher(
             camera_name=self.camera_name,
             rgb_out_topic=self.rgb_out_topic
         )
 
         # Input data attribute.
-        self.rgb_in = None
+        self.a_in = Input()
+
+        # Output data attribute.
+        self.a_out = Output()
 
         # Output data attribute.
         self.rgb_out = None
@@ -306,7 +310,8 @@ class ArUcoApp:
 
         # Decode and store the RGB data in the input
         # data attribute.
-        self.rgb_in = self.decode_image(msg=rgb_msg)
+        rgb_in = self.decode_image(msg=rgb_msg)
+        self.a_in.update(rgb_data=rgb_in)
         return
 
     def run(self):
@@ -337,14 +342,17 @@ class ArUcoApp:
         using the ArUco marker detection and pose estimation
         algorithm, and publishes the output.
         """
-        if self.rgb_in is not None:
-            # Process the input data.
-            self.rgb_out = self.aruco_processor.process_image(
-                img=self.rgb_in
+        if self.a_in.rgb_data is not None:
+            # Process the input image and generate the
+            # output image with detected ArUco markers'
+            # Id s and poses.
+            rgb_out = self.aruco_processor.process_image(
+                img=self.a_in.rgb_data
             )
+            self.a_out.update(rgb_data=rgb_out)
             rgb_out_encoded = \
                 self.aruco_id_pose_publisher.encode_image(
-                    img=self.rgb_out,
+                    img=rgb_out,
                     timestamp=rospy.Time.now()
                 )
             self.aruco_id_pose_publisher.publish_output(
@@ -393,7 +401,7 @@ if __name__ == '__main__':
     RATE_HZ = 10  # replace with your desired publishing rate.
 
     # Initialize the ArUco app ROS node.
-    aruco_reader = ArUcoApp(
+    aruco_reader = App(
         camera_name=CAMERA_NAME,
         camera_info_topic=CAMERA_INFO_TOPIC,
         rgb_in_topic=RGB_IN_TOPIC,

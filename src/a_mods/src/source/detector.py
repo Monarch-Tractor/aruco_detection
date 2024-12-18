@@ -10,7 +10,7 @@ import numpy as np
 import cv2
 
 
-class ArUcoDetector:
+class Detector:
     """
     This class handles the detection of 
     ArUco markers and their pose estimation.
@@ -28,7 +28,7 @@ class ArUcoDetector:
             aruco_dict_type
         )
         parameters = cv2.aruco.DetectorParameters()
-        self.aruco_detector = cv2.aruco.ArucoDetector(
+        self.aruco_detector = cv2.aruco.Detector(
             aruco_dict, parameters
         )
         # Resized image

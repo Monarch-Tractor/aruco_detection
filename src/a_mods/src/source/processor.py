@@ -20,7 +20,7 @@ from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import Pose
 
 from .camera import Camera
-from .aruco_detector import ArUcoDetector
+from .detector import Detector
 
 
 def rvec_tvec_to_pose(rvec, tvec):
@@ -134,7 +134,7 @@ def transform_camera_to_global(rvec_object_camera,
 #     return pose
 
 
-class ArUcoProcessor:
+class Processor:
     """
     This class handles the detection of ArUco markers, 
     pose estimation, and camera pose estimation based 
@@ -157,7 +157,7 @@ class ArUcoProcessor:
         self.camera = camera
         self.resize_image = resize_image
         self.marker_length = marker_length
-        self.detector = ArUcoDetector()
+        self.detector = Detector()
 
         # Camera pose initialization
         self.camera_pose = Pose()
@@ -272,21 +272,43 @@ class ArUcoProcessor:
         This method returns the relative poses of the 
         detected markers.
         """
-        relative_poses = {}
-        relative_pose = None
-        for (id_, (rvec, tvec)) in self.relative_poses.items():
-            relative_pose = rvec_tvec_to_pose(
-                rvec=rvec,
-                tvec=tvec
-            )
-            z_dist = relative_pose.position.z[0]
-            relative_poses[id_] = z_dist
-            # print(f"id_: {id_}")  # DEB
-            # print(f"relative_pose type: \n{type(relative_pose)}")  # DEB
-            # print(f"relative_pose: \n{relative_pose.position.z[0]}")  # DEB
-            # print("-" * 75)  # DEB
-            break
-        return relative_pose
+        # Find the marker with the minimum relative
+        # z-distance.
+        min_id = min(
+            self.relative_poses, 
+            key=lambda x: self.relative_poses[x][1][2]
+        )
+        rel_pose = self.relative_poses[min_id]
+        rel_pose = rvec_tvec_to_pose(
+            rvec=rel_pose[0],
+            tvec=rel_pose[1]
+        )
+        print(f"min_id: {min_id}")  # DEB
+        print(f"rel_pose type: \n{type(rel_pose)}")  # DEB
+        print(f"rel_pose: \n{rel_pose.position.z[0]}")  # DEB
+        print("-" * 75)  # DEB
+        return rel_pose
+        # relative_poses = {}
+        # relative_pose = None
+        # for (id_, (rvec, tvec)) in self.relative_poses.items():
+        #     print(f"rvec: \n{rvec}")  # DEB
+        #     print(f"tvec: \n{tvec}")  # DEB
+        #     print(f"z_dist [orig]: {tvec[2]}")  # DEB
+        #     print("-" * 75)  # DEB
+        #     relative_pose = rvec_tvec_to_pose(
+        #         rvec=rvec,
+        #         tvec=tvec
+        #     )
+        #     z_dist = relative_pose.position.z[0]
+        #     relative_poses[id_] = z_dist
+        #     print(f"z_dist [new]: {z_dist}")  # DEB
+        #     print("-" * 75)  # DEB
+        #     # print(f"id_: {id_}")  # DEB
+        #     # print(f"relative_pose type: \n{type(relative_pose)}")  # DEB
+        #     # print(f"relative_pose: \n{relative_pose.position.z[0]}")  # DEB
+        #     # print("-" * 75)  # DEB
+        #     break
+        # return relative_pose
 
     def initialize_aruco_poses(self, c_rvec, c_tvec):
         """
@@ -335,10 +357,6 @@ class ArUcoProcessor:
                     rvec_object_global=self.global_poses[id_][0],
                     tvec_object_global=self.global_poses[id_][1]
                 )
-                # self.initialize_aruco_poses(
-                #     c_rvec=c_rvec,
-                #     c_tvec=c_tvec
-                # )
                 self.camera_pose = rvec_tvec_to_pose(
                     rvec=c_rvec,
                     tvec=c_tvec
@@ -364,7 +382,7 @@ if __name__ == "__main__":
         camera_info_topic=CAMERA_INFO_TOPIC,
         use_default_intrinsics=True
     )
-    processor = ArUcoProcessor(camera=camera)
+    processor = Processor(camera=camera)
 
     # Load input image
     IN_IMG_PATH = "aruco_grid-in.png"

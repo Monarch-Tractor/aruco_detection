@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 
-class ArUcoGridGenerator:
+class GridGenerator:
     """
     This class generates a grid of ArUco markers 
     on a white background.
@@ -99,7 +99,7 @@ class ArUcoGridGenerator:
         return image
 
 
-class ArUcoProcessor:
+class Processor:
     """
     This class helps in the creation of 
     an ArUco marker grid.
@@ -109,7 +109,7 @@ class ArUcoProcessor:
                  marker_length=0.05):
         self.grid_size = grid_size
         self.marker_length = marker_length
-        self.grid_generator = ArUcoGridGenerator(
+        self.grid_generator = GridGenerator(
             grid_size=grid_size,
             marker_length=marker_length
         )
@@ -137,7 +137,7 @@ class ArUcoProcessor:
 # Main script
 if __name__ == "__main__":
     # Initialize the processor.
-    processor = ArUcoProcessor()
+    processor = Processor()
 
     # Generate the grid image.
     grid_image = processor.process(
