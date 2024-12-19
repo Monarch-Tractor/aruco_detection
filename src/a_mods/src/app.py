@@ -20,7 +20,8 @@ from scipy.spatial.transform import Rotation as R
 
 from source.camera import Camera
 from source.processor import Processor
-from source.io_handler import Input, Output
+from source.io_handler import Input
+from source.publishers import IDPosePublisher
 
 
 def pose_to_rvec_tvec(pose):
@@ -52,58 +53,6 @@ def pose_to_rvec_tvec(pose):
         rvec.reshape(3, 1),
         tvec
     )
-
-
-class IDPosePublisher:
-    """
-    This class listens to the ROS topic publishing
-    the images with ArUco markers and publishes the
-    IDs of the detected markers along with their poses.
-    """
-    def __init__(self,
-                 camera_name,
-                 rgb_out_topic):
-        self.camera_name = camera_name
-        self.rgb_out_topic = rgb_out_topic
-        self.get_publishers()
-
-    def get_publishers(self):
-        """
-        This method defines the different publishers.
-        """
-        self.rgb_out_publisher = rospy.Publisher(
-            name=self.rgb_out_topic,
-            data_class=CompressedImage,
-            queue_size=10
-        )
-        return
-
-    def encode_image(self, img, timestamp):
-        """aruco_id_pose_publisher.py
-        This method encodes a numpy array of an image into a 
-        sensor_msgs/CompressedImage message.
-        """
-        # Create a CompressedImage message and publish it.
-        msg = CompressedImage()
-        msg.header = Header(
-            frame_id="map",
-            stamp=timestamp,
-        )
-        _, compressed_img = cv2.imencode(".jpg", img)
-        msg.format = "jpeg"
-        msg.data = np.asarray(compressed_img).tobytes()
-        return msg
-
-    def publish_output(self, rgb_out_msg):
-        """
-        This method publishes the output of the
-        ArUco marker detection and pose estimation
-        algorithm.
-        """
-        # Publish ID and pose of the detected ArUco
-        # markers as a compressed image.
-        self.rgb_out_publisher.publish(rgb_out_msg)
-        return
 
 
 class App:
@@ -155,7 +104,9 @@ class App:
 
         # Initialize the tf buffer.
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_listener = tf2_ros.TransformListener(
+            self.tf_buffer
+        )
         self.lookup_static_transform()
 
         self.aruco_poses = {}
@@ -176,14 +127,13 @@ class App:
         # Publishers for the topics.
         self.aruco_id_pose_publisher = IDPosePublisher(
             camera_name=self.camera_name,
-            rgb_out_topic=self.rgb_out_topic
+            rgb_out_topic=self.rgb_out_topic,
+            relative_pose_topic=self.relative_pose_topic,
+            global_pose_topic=self.global_pose_topic
         )
 
         # Input data attribute.
         self.a_in = Input()
-
-        # Output data attribute.
-        self.a_out = Output()
 
         # Output data attribute.
         self.rgb_out = None
@@ -192,13 +142,13 @@ class App:
         """
         This method defines the different publishers.
         """
-        self.relative_pose_publisher = rospy.Publisher(
+        self.relative_pose_pub = rospy.Publisher(
             name=self.relative_pose_topic,
             data_class=Odometry,
             queue_size=10
         )
 
-        self.global_pose_publisher = rospy.Publisher(
+        self.global_pose_pub = rospy.Publisher(
             name=self.global_pose_topic,
             data_class=Odometry,
             queue_size=10
@@ -210,7 +160,7 @@ class App:
         """
         This method defines the different subscribers.
         """
-        self.rgb_in_subscriber = rospy.Subscriber(
+        self.rgb_in_sub = rospy.Subscriber(
             name=self.rgb_in_topic,
             data_class=CompressedImage,
             callback=self.rgb_topic_callback
@@ -222,7 +172,7 @@ class App:
             callback=self.initialize_aruco_pose_callback
         )
 
-        self.localization_subscriber = rospy.Subscriber(
+        self.localization_sub = rospy.Subscriber(
             name=self.localization_topic,
             data_class=Odometry,
             callback=self.localization_callback
@@ -235,7 +185,9 @@ class App:
         """
         if msg.data:
             rospy.loginfo("Initializing ArUco pose.")
-            rvec, tvec = pose_to_rvec_tvec(pose=self.camera_pose)
+            rvec, tvec = pose_to_rvec_tvec(
+                pose=self.camera_pose
+            )
             self.aruco_processor.initialize_aruco_poses(
                 c_rvec=rvec,
                 c_tvec=tvec
@@ -246,8 +198,8 @@ class App:
 
     def decode_image(self, msg):
         """
-        This method decodes a sensor_msgs/CompressedImage message
-        into a numpy array.
+        This method decodes a sensor_msgs/CompressedImage
+        message into a numpy array.
         """
         # Decode the compressed image message.
         img = np.frombuffer(
@@ -269,14 +221,16 @@ class App:
         from the odometry data.
         """
         try:
-            self.baselink_to_camera = self.tf_buffer.lookup_transform(
-                target_frame=self.baselink_frame,
-                source_frame=self.camera_frame,
-                time=rospy.Time(0),
-                timeout=rospy.Duration(5.0)
-            )
+            self.baselink_to_camera = \
+                self.tf_buffer.lookup_transform(
+                    target_frame=self.baselink_frame,
+                    source_frame=self.camera_frame,
+                    time=rospy.Time(0),
+                    timeout=rospy.Duration(5.0)
+                )
             rospy.loginfo(
-                "Static transform from /baselink to /camera obtained."
+                "Static transform from /baselink " + \
+                "to /camera obtained."
             )
         except tf2_ros.LookupException as e:
             rospy.logerr(
@@ -292,10 +246,11 @@ class App:
         message is used to update the camera pose.
         """
         self.baselink_pose = msg.pose
-        self.camera_pose = tf2_geometry_msgs.do_transform_pose(
-            pose=self.baselink_pose,
-            transform=self.baselink_to_camera
-        )
+        self.camera_pose = \
+            tf2_geometry_msgs.do_transform_pose(
+                pose=self.baselink_pose,
+                transform=self.baselink_to_camera
+            )
         return
 
 
@@ -332,8 +287,10 @@ class App:
         return
 
     def reset(self):
-        "Reset the input data attributes."
-        self.rgb_in = None
+        """
+        This method resets the input data attributes.
+        """
+        self.a_in.reset()
         return
 
     def process(self):
@@ -359,24 +316,36 @@ class App:
                 rgb_out_msg=rgb_out_encoded
             )
 
+            # Get the global pose of the camera, and publish
+            # the global pose.
             global_pose = self.aruco_processor.get_camera_pose_estimate()
             if global_pose is not None:
-                odom_message = Odometry()
-                odom_message.header.frame_id = "map"
-                odom_message.child_frame_id = "zed_front_left_img"
-                odom_message.header.stamp = rospy.Time.now()
-                odom_message.pose.pose = global_pose
-                self.global_pose_publisher.publish(odom_message)
+                global_pose_encoded = \
+                    self.aruco_id_pose_publisher.encode_pose(
+                        pose=global_pose,
+                        frame_id="map",
+                        child_frame_id="zed_front_left_img",
+                        timestamp=rospy.Time.now()
+                    )
+                self.aruco_id_pose_publisher.publish_output(
+                    global_pose_msg=global_pose_encoded
+                )
 
+            # Get the relative pose of the camera with respect
+            # to the detected ArUco markers, and publish the
+            # relative pose.
             relative_pose = self.aruco_processor.get_relative_poses()
             if relative_pose is not None:
-
-                odom_message = Odometry()
-                odom_message.header.frame_id = "map"
-                odom_message.child_frame_id = "zed_front_left_img"
-                odom_message.header.stamp = rospy.Time.now()
-                odom_message.pose.pose = relative_pose
-                self.relative_pose_publisher.publish(odom_message)
+                relative_pose_encoded = \
+                    self.aruco_id_pose_publisher.encode_pose(
+                        pose=relative_pose,
+                        frame_id="map",
+                        child_frame_id="zed_front_left_img",
+                        timestamp=rospy.Time.now()
+                    )
+                self.aruco_id_pose_publisher.publish_output(
+                    relative_pose_msg=relative_pose_encoded
+                )
 
         return
 

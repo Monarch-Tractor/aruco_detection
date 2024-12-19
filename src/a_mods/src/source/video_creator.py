@@ -9,7 +9,7 @@ import numpy as np
 
 from tqdm import tqdm
 
-from camera import Camera
+from .camera import Camera
 
 
 class ImageTransformer:
