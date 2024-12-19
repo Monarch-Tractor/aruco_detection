@@ -10,7 +10,6 @@ publishes the output as ROS messages.
 """
 
 
-# from pathlib import Path
 import yaml
 
 import numpy as np
@@ -32,43 +31,10 @@ from source.io_handler import (
 
 from source.utils.ops import (
     encode_image,
+    encode_odometry,
     decode_image,
-    decode_pose,
-    encode_image,
-    encode_pose,
-    encode_odometry
+    decode_pose
 )
-
-
-def pose_to_rvec_tvec(pose):
-    """
-    This method converts a geometry_msgs/Pose message
-    to a rotation vector and translation vector.
-    """
-    # Extract translation vector (tvec).
-    tvec = np.array([
-        pose.position.x,
-        pose.position.y,
-        pose.position.z
-    ], dtype=np.float64)
-
-    # Extract quaternion.
-    quaternion = [
-        pose.orientation.x,
-        pose.orientation.y,
-        pose.orientation.z,
-        pose.orientation.w
-    ]
-
-    # Convert quaternion to rotation vector (rvec).
-    rotation = R.from_quat(quaternion)
-    # Convert the rotation to a rotation vector.
-    rvec = rotation.as_rotvec()
-
-    return (
-        rvec.reshape(3, 1),
-        tvec
-    )
 
 
 class ArUcoApp:
@@ -209,8 +175,8 @@ class ArUcoApp:
         """
         if msg.data:
             rospy.loginfo("Initializing ArUco pose.")
-            rvec, tvec = pose_to_rvec_tvec(
-                pose=self.camera_pose
+            rvec, tvec = decode_pose(
+                msg=self.camera_pose
             )
             self.processor.initialize_aruco_poses(
                 c_rvec=rvec,
@@ -275,7 +241,7 @@ class ArUcoApp:
         rgb_in = decode_image(msg=rgb_msg)
         self.a_in.update(rgb_data=rgb_in)
         return
-    
+
     def encode_output(self,
                       rgb_data,
                       global_pose,
@@ -378,7 +344,6 @@ class ArUcoApp:
                 self.rgb_pub.publish(
                     encoded_rgb_out
                 )
-                print(f"published rgb_out")
             if encoded_global_pose is not None:
                 self.global_pose_pub.publish(
                     encoded_global_pose

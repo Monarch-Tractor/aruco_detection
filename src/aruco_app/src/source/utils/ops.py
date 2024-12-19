@@ -6,8 +6,6 @@ This script contains helper methods used across the project.
 import numpy as np
 import cv2
 
-import rospy
-
 from sensor_msgs.msg import CompressedImage
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Header
@@ -201,6 +199,4 @@ def transform_object_to_global(rvec_camera,
     rvec_object_global, _ = cv2.Rodrigues(r_object_global)
 
     return rvec_object_global, t_object_global
-
-
 

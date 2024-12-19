@@ -218,7 +218,7 @@ class PoseProcessor:
         """
         # Find the marker with the minimum relative
         # z-distance.
-        min_id = min(
+        min_id = max(
             self.relative_poses,
             key=lambda x: self.relative_poses[x][1][2]
         )
