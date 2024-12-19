@@ -248,7 +248,7 @@ class ArUcoReader:
         return
     
     def localization_callback(self, msg):
-        self.baselink_pose = msg.pose.pose
+        self.baselink_pose = msg.pose
         self.camera_pose = tf2_geometry_msgs.do_transform_pose(self.baselink_pose, self.baselink_to_camera)
         return
 
