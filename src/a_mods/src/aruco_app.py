@@ -274,7 +274,7 @@ class ArUcoApp:
         return
     
     def encode_output(self,
-                      rgb_out,
+                      rgb_data,
                       global_pose,
                       relative_pose):
         """
@@ -284,10 +284,15 @@ class ArUcoApp:
         # Get the current timestamp.
         timestamp = rospy.Time.now()
 
+        # Initialize the encoded output attributes.
+        encoded_rgb_data = None
+        encoded_global_pose = None
+        encoded_relative_pose = None
+
         # Encode the output image.
-        if rgb_out is not None:
-            encoded_rgb_out = encode_image(
-                img=img,
+        if rgb_data is not None:
+            encoded_rgb_data = encode_image(
+                img=rgb_data,
                 timestamp=timestamp
             )
         # Encode the global pose.
@@ -302,6 +307,12 @@ class ArUcoApp:
                 rvec=relative_pose[0],
                 tvec=relative_pose[1]
             )
+
+        return (
+            encoded_rgb_data,
+            encoded_global_pose,
+            encoded_relative_pose
+        )
 
     def run(self):
         """
@@ -333,9 +344,6 @@ class ArUcoApp:
         using the ArUco marker detection and pose estimation
         algorithm, and publishes the output.
         """
-        # Get the current timestamp.
-        timestamp = rospy.Time.now()
-
         if self.a_in.rgb_data is not None:
             # Process the input image and generate the
             # output image with detected ArUco markers'
@@ -350,55 +358,26 @@ class ArUcoApp:
             self.a_out.update(rgb_data=rgb_out)
 
             # Encode the processor's outputs.
-            if rgb_out is not None:
-                encoded_rgb_out = encode_image(
-                    img=rgb_out,
-                    timestamp=timestamp
-                )
-            if global_pose is not None:
-                encoded_global_pose = encode_odometry(
-                    pose=global_pose,
-                    frame_id="map",
-                    child_frame_id="zed_front_left_img",
-                    timestamp=timestamp
-                )
-            if relative_pose is not None:
-                encoded_relative_pose = encode_odometry(
-                    pose=relative_pose,
-                    frame_id="map",
-                    child_frame_id="zed_front_left_img",
-                    timestamp=timestamp
-                )
+            encoded_rgb_out, \
+            encoded_global_pose, \
+            encoded_relative_pose = self.encode_output(
+                rgb_data=rgb_out,
+                global_pose=global_pose,
+                relative_pose=relative_pose
+            )
 
-            # Get the global pose of the camera, and publish
-            # the global pose.
-            global_pose = self.processor.get_camera_pose_estimate()
-            if global_pose is not None:
-                global_pose_encoded = \
-                    self.aruco_id_pose_publisher.encode_pose(
-                        pose=global_pose,
-                        frame_id="map",
-                        child_frame_id="zed_front_left_img",
-                        timestamp=rospy.Time.now()
-                    )
-                self.aruco_id_pose_publisher.publish_output(
-                    global_pose_msg=global_pose_encoded
+            # Publish the encoded output messages.
+            if encoded_rgb_out is not None:
+                self.rgb_pub.publish(
+                    encoded_rgb_out
                 )
-
-            # Get the relative pose of the camera with respect
-            # to the detected ArUco markers, and publish the
-            # relative pose.
-            relative_pose = self.processor.get_relative_poses()
-            if relative_pose is not None:
-                relative_pose_encoded = \
-                    self.aruco_id_pose_publisher.encode_pose(
-                        pose=relative_pose,
-                        frame_id="map",
-                        child_frame_id="zed_front_left_img",
-                        timestamp=rospy.Time.now()
-                    )
-                self.aruco_id_pose_publisher.publish_output(
-                    relative_pose_msg=relative_pose_encoded
+            if encoded_global_pose is not None:
+                self.global_pose_pub.publish(
+                    encoded_global_pose
+                )
+            if encoded_relative_pose is not None:
+                self.relative_pose_pub.publish(
+                    encoded_relative_pose
                 )
 
         return
