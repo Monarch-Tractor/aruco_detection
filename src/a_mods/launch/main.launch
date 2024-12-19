@@ -1,7 +1,0 @@
-<launch>
-  <!-- Launch all inner module launch files in parallel, with a namespace defined at the main launch file level -->
-  <!-- Launch app inside 'aruco_app' namespace -->
-  <group ns="aruco_app">
-    <include file="$(find a_mods)/launch/aruco_app.launch"/>
-  </group>
-</launch>
