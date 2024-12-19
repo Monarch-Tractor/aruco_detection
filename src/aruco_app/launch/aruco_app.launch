@@ -1,0 +1,12 @@
+<launch>
+  <!-- Set path for config file -->
+  <arg name="config" default="$(find aruco_app)/src/cfg/sample.yaml"/>
+
+  <!-- Launch the AruCo app inside 'aruco_app' namespace -->
+  <group ns="aruco_app">
+    <!-- Start the AruCo app node -->
+    <node name="aruco_app_node" pkg="aruco_app" type="aruco_app.py" required="true" output="screen">
+      <param name="config" value="$(arg config)"/>
+    </node>
+  </group>
+</launch>
