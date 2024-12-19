@@ -13,80 +13,13 @@ from concurrent.futures import (
 import numpy as np
 import cv2
 
-import numpy as np
-import cv2
-
-import rospy
-from sensor_msgs.msg import CompressedImage
-from nav_msgs.msg import Odometry
-from std_msgs.msg import Header
-
-import tf2_ros
-import tf2_geometry_msgs
-
-from scipy.spatial.transform import Rotation as R
-from geometry_msgs.msg import Pose
-
 from .camera import Camera
 from .detector import Detector
-
-
-# def rvec_tvec_to_pose(rvec, tvec):
-#     """
-#     This method converts the rotation and translation 
-#     vectors to a pose message.
-
-#     Input:
-#         - rvec: Rotation vector
-#         - tvec: Translation vector
-
-#     Output:
-#         - Pose message
-#     """
-#     # Convert rvec to quaternion
-#     rotation = R.from_rotvec(rvec.flatten())
-#     quaternion = rotation.as_quat()
-
-#     # Create the pose message
-#     pose = Pose()
-#     pose.position.x = tvec[0]
-#     pose.position.y = tvec[1]
-#     pose.position.z = tvec[2]
-#     pose.orientation.x = quaternion[0]
-#     pose.orientation.y = quaternion[1]
-#     pose.orientation.z = quaternion[2]
-#     pose.orientation.w = quaternion[3]
-
-#     return pose
-
-
-# def convert_rvec_tvec_to_pose(rvec, tvec):
-#     """
-#     This method converts the rotation and translation
-#     vectors to a pose message.
-
-#     Input:
-#         - rvec: Rotation vector
-#         - tvec: Translation vector
-
-#     Output:
-#         - Pose message
-#     """
-#     # Convert rvec to quaternion
-#     rotation = R.from_rotvec(rvec.flatten())
-#     quaternion = rotation.as_quat()
-
-#     # Create the pose message
-#     pose = Pose()
-#     pose.position.x = tvec[0]
-#     pose.position.y = tvec[1]
-#     pose.position.z = tvec[2]
-#     pose.orientation.x = quaternion[0]
-#     pose.orientation.y = quaternion[1]
-#     pose.orientation.z = quaternion[2]
-#     pose.orientation.w = quaternion[3]
-
-#     return pose
+from .utils.ops import (
+    encode_pose,
+    transform_camera_to_global,
+    transform_object_to_global
+)
 
 
 class ImageProcessor:
@@ -96,10 +29,10 @@ class ImageProcessor:
     on the detected markers.
     """
     def __init__(self,
-                 camera,
+                 intrinsic_matrix,
+                 distortion_vector,
                  resize_image=False,
-                 marker_length=0.05,
-                 rgb_topic=None):
+                 marker_length=0.05):
         """
         Initialize the processor with camera, marker length, 
         and ArUco dictionary type.
@@ -109,77 +42,14 @@ class ImageProcessor:
             - resize_image: Flag to resize the input image
             - marker_length: Physical length of the marker 
                   in meters
-            - rgb_topic: RGB image topic
         """
-        self.camera = camera
+        self.intrinsic_matrix = intrinsic_matrix
+        self.distortion_vector = distortion_vector
         self.resize_image = resize_image
         self.marker_length = marker_length
-        self.rgb_topic = rgb_topic
 
         # AruCo marker detector
         self.detector = Detector()
-
-        # Publishers
-        self.set_publishers()
-
-    def set_publishers(self):
-        """
-        This method defines the different publishers.
-        """
-        if self.rgb_topic is not None:
-            self.rgb_pub= rospy.Publisher(
-                name=self.rgb_topic,
-                data_class=CompressedImage,
-                queue_size=10
-            )
-        return
-
-    def encode_image(self, img, timestamp):
-        """
-        This method encodes a numpy array of an image into a 
-        sensor_msgs/CompressedImage message.
-        """
-        msg = CompressedImage()
-        msg.header = Header(
-            frame_id="map",
-            stamp=timestamp,
-        )
-        _, compressed_img = cv2.imencode(".jpg", img)
-        msg.format = "jpeg"
-        msg.data = np.asarray(compressed_img).tobytes()
-        return msg
-
-    def postprocess_output(self,
-                           rgb_data,
-                           timestamp):
-        """
-        This method post-processes the output of the ArUco
-        marker detection and pose estimation algorithm.
-        """
-        # Encode output RGB data.
-        encoded_rgb_data = None
-        if rgb_data is not None:
-            encoded_rgb_data = self.encode_image(
-                img=rgb_data,
-                timestamp=timestamp
-            )
-
-        return encoded_rgb_data
-
-    def publish_output(self,
-                       rgb_msg=None):
-        """
-        This method publishes the output of the
-        ArUco marker detection and pose estimation
-        algorithm.
-        """
-        # Publish ID and pose of the detected ArUco
-        # markers as a compressed image.
-        if rgb_msg is not None:
-            self.rgb_pub.publish(
-                rgb_msg
-            )
-        return
 
     def postprocess_marker_image(self,
                                  rvec,
@@ -187,7 +57,7 @@ class ImageProcessor:
                                  corner,
                                  marker_id):
         """
-        This method post-processes a single marker by drawing 
+        This method post-process a single marker by drawing 
         its axes and overlaying its ID.
 
         Input:
@@ -195,31 +65,35 @@ class ImageProcessor:
             - tvec: Translation vector
             - corner: Marker corner (used for text placement)
             - marker_id: ID of the marker
+            - img: Resized image to overlay results
+
+        Output:
+            - None (modifies the image in place)
         """
-        # Draw axes for the marker.
+        # Draw axes for the marker
         self.detector.draw_axes(
             rvec=rvec,
             tvec=tvec,
-            intrinsic_matrix=self.camera.intrinsic_matrix,
-            distortion_vector=self.camera.distortion_vector
+            intrinsic_matrix=self.intrinsic_matrix,
+            distortion_vector=self.distortion_vector
         )
 
-        # Draw the marker ID.
-        x, y = int(corner[0][0]), int(corner[0][1])
+        # Draw the marker ID below the detected marker
+        x, y = int(corner[0][0]), int(corner[0][1])  # Top-left corner
         cv2.putText(
-            self.resized_img,
+            self.detector.resized_img,
             str(marker_id),
-            (x, y + 20),
+            (x, y + 30),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 150, 250),  # (124, 214, 166),
+            1.0,
+            (0, 150, 250),
             2,
             cv2.LINE_AA
         )
 
         return
 
-    def process_image(self, img, timestamp=None):
+    def process_image(self, img):
         """
         This method detect markers, estimates poses, and 
         overlays results on the image.
@@ -250,8 +124,8 @@ class ImageProcessor:
             rvecs, tvecs = self.detector.estimate_pose_multiple(
                 corners=corners,
                 marker_length=self.marker_length,
-                intrinsic_matrix=self.camera.intrinsic_matrix,
-                distortion_vector=self.camera.distortion_vector
+                intrinsic_matrix=self.intrinsic_matrix,
+                distortion_vector=self.distortion_vector
             )
 
             # Post-process each marker image.
@@ -268,20 +142,11 @@ class ImageProcessor:
                 ]
                 wait(futures)
 
-        if ((self.rgb_topic is not None) and\
-            (self.detector.resized_img is not None)):
-            # Encode the image, relative pose, and global pose
-            # to publish as ROS messages.
-            encoded_rgb_data = self.postprocess_output(
-                rgb_data=self.detector.resized_img,
-                timestamp=timestamp
-            )
-            # Publish the encoded output as ROS messages.
-            self.publish_output(rgb_msg=encoded_rgb_data)
-
         return (
             self.detector.resized_img,
-            ids, rvecs, tvecs
+            ids,
+            rvecs,
+            tvecs
         )
 
 
@@ -291,241 +156,60 @@ class PoseProcessor:
     relative pose of the camera with respect to a detected
     ArUco marker.
     """
-    def __init__(self,
-                 camera,
-                 relative_pose_topic=None,
-                 global_pose_topic=None):
+    def __init__(self):
         """
         Initialize the processor with camera, marker length, 
         and ArUco dictionary type.
-
-        Input:
-            - camera: Camera object
-            - relative_pose_topic: Relative pose topic
-            - global_pose_topic: Global pose topic
         """
-        self.camera = camera
-        self.relative_pose_topic = relative_pose_topic
-        self.global_pose_topic = global_pose_topic
 
         # Camera pose initialization
-        self.camera_pose = Pose()
-        self.camera_pose.position.x = 0
-        self.camera_pose.position.y = 0
-        self.camera_pose.position.z = 0
-        self.camera_pose.orientation.x = 0
-        self.camera_pose.orientation.y = 0
-        self.camera_pose.orientation.z = 0
-        self.camera_pose.orientation.w = 1
+        self.camera_pose = encode_pose(
+            rvec=np.zeros(3, dtype=np.float32),
+            tvec=np.zeros(3, dtype=np.float32)
+        )
 
         # Relative and global poses
         self.relative_poses = {}
         self.global_poses = {}
 
-        # Publishers
-        self.set_publishers()
+    def process_single_pose(self,
+                            marker_id,
+                            rvec,
+                            tvec):
+            """
+            This method is a helper function to process a 
+            single pose.
+            """
+            return marker_id[0], (rvec, tvec)
 
-    def set_publishers(self):
-        """
-        This method defines the different publishers.
-        """
-        if self.relative_pose_topic is not None:
-            self.relative_pose_pub = rospy.Publisher(
-                name=self.relative_pose_topic,
-                data_class=Odometry,
-                queue_size=10
-            )
-        if self.global_pose_topic is not None:
-            self.global_pose_pub = rospy.Publisher(
-                name=self.global_pose_topic,
-                data_class=Odometry,
-                queue_size=10
-            )
-        return
-
-    def transform_object_to_global(self,
-                                   rvec_camera,
-                                   tvec_camera,
-                                   rvec_object_camera,
-                                   tvec_object_camera):
-        """
-        This method transforms the object pose from the 
-        camera frame to the global frame.
-        """
-        # Convert rvecs to rotation matrices
-        R_camera, _ = cv2.Rodrigues(rvec_camera)
-        R_object_camera, _ = cv2.Rodrigues(rvec_object_camera)
-
-        # Compute global rotation
-        R_object_global = R_camera @ R_object_camera
-
-        # Compute global translation
-        t_object_global = \
-            R_camera @ tvec_object_camera + tvec_camera
-
-        # Convert rotation matrix back to rvec
-        rvec_object_global, _ = cv2.Rodrigues(R_object_global)
-
-        return rvec_object_global, t_object_global
-
-
-    def transform_camera_to_global(self,
-                                   rvec_object_camera,
-                                   tvec_object_camera,
-                                   rvec_object_global,
-                                   tvec_object_global):
-        """
-        This method transforms the camera pose from the
-        object frame to the global frame.
-        """
-        # Convert rvecs to rotation matrices
-        R_object_camera, _ = cv2.Rodrigues(rvec_object_camera)
-        R_object_global, _ = cv2.Rodrigues(rvec_object_global)
-
-        # Compute camera rotation
-        R_camera = R_object_global.T @ R_object_camera
-
-        # Compute camera translation
-        t_camera = R_object_global.T @ (
-            tvec_object_camera - tvec_object_global
-        )
-
-        # Convert rotation matrix back to rvec
-        rvec_camera, _ = cv2.Rodrigues(R_camera)
-
-        return rvec_camera, t_camera
-
-    def encode_pose(self, rvec, tvec):
-        """
-        This method encodes the camera pose estimate into
-        a geometry_msgs/Pose message.
-        """
-        # Convert rvec to quaternion.
-        rotation = R.from_rotvec(rvec.flatten())
-        quaternion = rotation.as_quat()
-
-        # Create the pose message.
-        pose = Pose()
-        pose.position.x = tvec[0]
-        pose.position.y = tvec[1]
-        pose.position.z = tvec[2]
-        pose.orientation.x = quaternion[0]
-        pose.orientation.y = quaternion[1]
-        pose.orientation.z = quaternion[2]
-        pose.orientation.w = quaternion[3]
-
-        return pose
-
-    def encode_odometry(self,
-                        pose,
-                        frame_id,
-                        child_frame_id,
-                        timestamp):
-        """
-        This method encodes a pose into a nav_msgs/Odometry
-        message.
-        """
-        msg = Odometry()
-        msg.header = Header(
-            frame_id=frame_id,
-            stamp=timestamp
-        )
-        msg.child_frame_id = child_frame_id
-        msg.pose.pose = pose
-        return msg
-
-    def postprocess_output(self,
-                           relative_pose,
-                           global_pose,
-                           timestamp):
-        """
-        This method post-processes the estimated poses of
-        the camera in different coordinate frames.
-        """
-        # Encode relative pose odometry.
-        encoded_relative_pose = None
-        if relative_pose is not None:
-            encoded_relative_pose = self.encode_odometry(
-                pose=relative_pose,
-                frame_id="map",
-                child_frame_id="zed_front_left_msg",
-                timestamp=timestamp
-            )
-
-        # Encode global pose odometry.
-        encoded_global_pose = None
-        if global_pose is not None:
-            encoded_global_pose = self.encode_odometry(
-                pose=global_pose,
-                frame_id="map",
-                child_frame_id="zed_front_left_msg",
-                timestamp=timestamp
-            )
-
-        return (
-            encoded_relative_pose,
-            encoded_global_pose
-        )
-
-    def publish_output(self,
-                       relative_pose_msg=None,
-                       global_pose_msg=None):
-        """
-        This method publishes the estimated output 
-        camera poses in different coordinate frames.
-        """
-        # Publish the relative pose of the camera
-        # with respect to the detected ArUco markers.
-        if relative_pose_msg is not None:
-            self.relative_pose_pub.publish(
-                relative_pose_msg
-            )
-        # Publish the global pose of the camera.
-        if global_pose_msg is not None:
-            self.global_pose_pub.publish(
-                global_pose_msg
-            )
-        return
-
-    def process_pose(self,
-                     ids,
-                     rvecs,
-                     tvecs,
-                     timestamp=None):
+    def process_pose(self, ids, rvecs, tvecs):
         """
         This method processes the estimated pose of the
-        camera with respect to the detected ArUco markers.
+        camera with respect to the detected ArUco markers
+        using parallelization and eliminating explicit for
+        loops.
 
         Input:
-            - pose: Estimated pose of the camera with respect
-                  to the detected ArUco markers
-            - timestamp: Timestamp of the pose estimation
+            - ids: Array of marker IDs
+            - rvecs: Array of rotation vectors
+            - tvecs: Array of translation vectors
         """
-        # Set the camera pose estimate.
-        self.relative_poses = {}
-        for i, (rvec, tvec) in enumerate(zip(rvecs, tvecs)):
-            self.relative_poses[ids[i][0]] = (rvec, tvec)
+        # Process each pose in parallel.
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(
+                self.process_single_pose,
+                ids,
+                rvecs,
+                tvecs
+            ))
+        # Convert results to a dictionary
+        self.relative_poses = dict(results)
+        # Set the camera pose estimate
         self.camera_pose = self.set_camera_pose_estimate()
 
-        if ((self.relative_pose_topic is not None) and \
-            (self.global_pose_topic is not None)):
-            # Encode the relative and global pose of the
-            # camera to publish as ROS messages.
-            relative_pose = self.get_relative_pose()
-            global_pose = self.get_camera_pose_estimate()
-            encoded_relative_pose, \
-            encoded_global_pose = self.postprocess_output(
-                relative_pose=relative_pose,
-                global_pose=global_pose,
-                timestamp=timestamp
-            )
-            # Publish the encoded output as ROS messages.
-            self.publish_output(
-                relative_pose_msg=encoded_relative_pose,
-                global_pose_msg=encoded_global_pose
-            )
-
-        return
+        global_pose = self.get_camera_pose_estimate()
+        relative_pose = self.get_relative_pose()
+        return global_pose, relative_pose
 
     def get_relative_pose(self):
         """
@@ -542,7 +226,7 @@ class PoseProcessor:
         # relative z-distance.
         target_relative_pose = self.relative_poses[min_id]
         # Encode the pose as a Pose message.
-        target_relative_pose = self.encode_pose(
+        target_relative_pose = encode_pose(
             rvec=target_relative_pose[0],
             tvec=target_relative_pose[1]
         )
@@ -555,7 +239,7 @@ class PoseProcessor:
         """
         for (id_, (rvec, tvec)) in self.relative_poses.items():
             rvec_global, tvec_global = \
-                self.transform_object_to_global(
+                transform_object_to_global(
                     rvec_camera=c_rvec,
                     tvec_camera=c_tvec,
                     rvec_object_camera=rvec,
@@ -564,6 +248,7 @@ class PoseProcessor:
             self.global_poses[id_] = (
                 rvec_global, tvec_global
             )
+        return
 
     def get_global_poses(self):
         """
@@ -591,17 +276,16 @@ class PoseProcessor:
                 print(f"tvec_global_object: \n{self.global_poses[id_]}")  # DEB
                 print("-" * 75)  # DEB
                 c_rvec, c_tvec = \
-                    self.transform_camera_to_global(
+                    transform_camera_to_global(
                         rvec_object_camera=rvec,
                         tvec_object_camera=tvec,
                         rvec_object_global=self.global_poses[id_][0],
                         tvec_object_global=self.global_poses[id_][1]
                     )
-                self.camera_pose = self.encode_pose(
+                self.camera_pose = encode_pose(
                     rvec=c_rvec,
                     tvec=c_tvec
                 )
-
         return self.camera_pose
 
     def get_camera_pose_estimate(self):
@@ -620,10 +304,7 @@ class Processor:
     def __init__(self,
                  camera,
                  resize_image=False,
-                 marker_length=0.05,
-                 rgb_topic=None,
-                 relative_pose_topic=None,
-                 global_pose_topic=None):
+                 marker_length=0.05):
         """
         Initialize the processor with camera, marker length, 
         and ArUco dictionary type.
@@ -633,31 +314,21 @@ class Processor:
             - resize_image: Flag to resize the input image
             - marker_length: Physical length of the marker 
                   in meters
-            - rgb_topic: RGB image topic
-            - relative_pose_topic: Relative pose topic
-            - global_pose_topic: Global pose topic
         """
         self.camera = camera
         self.resize_image = resize_image
         self.marker_length = marker_length
-        self.rgb_topic = rgb_topic
-        self.relative_pose_topic = relative_pose_topic
-        self.global_pose_topic = global_pose_topic
 
         # Image processor
         self.image_processor = ImageProcessor(
-            camera=camera,
+            intrinsic_matrix=self.camera.intrinsic_matrix,
+            distortion_vector=self.camera.distortion_vector,
             resize_image=resize_image,
-            marker_length=marker_length,
-            rgb_topic=rgb_topic
+            marker_length=marker_length
         )
 
         # Pose processor
-        self.pose_processor = PoseProcessor(
-            camera=camera,
-            relative_pose_topic=relative_pose_topic,
-            global_pose_topic=global_pose_topic
-        )
+        self.pose_processor = PoseProcessor()
 
     def process(self, img):
         """
@@ -668,25 +339,19 @@ class Processor:
         Input:
             - img: Input image
         """
-        # Get timestamp.
-        timestamp = rospy.Time.now()
-
         # Process the image.
-        _, ids, rvecs, tvecs = \
-            self.image_processor.process_image(
-                img=img,
-                timestamp=timestamp
-            )
+        rgb_out, ids, rvecs, tvecs = \
+            self.image_processor.process_image(img=img)
 
         # Process the pose.
-        self.pose_processor.process_pose(
-            ids=ids,
-            rvecs=rvecs,
-            tvecs=tvecs,
-            timestamp=timestamp
-        )
+        global_pose, reltaive_pose = \
+            self.pose_processor.process_pose(
+                ids=ids,
+                rvecs=rvecs,
+                tvecs=tvecs
+            )
 
-        return
+        return rgb_out, global_pose, reltaive_pose
 
 
 # Main driver code
@@ -700,7 +365,10 @@ if __name__ == "__main__":
         camera_info_topic=CAMERA_INFO_TOPIC,
         use_default_intrinsics=True
     )
-    img_processor = ImageProcessor(camera=camera)
+    img_processor = ImageProcessor(
+        intrinsic_matrix=camera.intrinsic_matrix,
+        distortion_vector=camera.distortion_vector,
+    )
 
     # Load input image
     IN_IMG_PATH = "aruco_grid-in.png"

@@ -1,0 +1,9 @@
+<launch>
+  <!-- Set path for config file -->
+  <arg name="config" default="$(find a_mods)/src/cfg/sample.yaml"/>
+
+  <!-- Start the AruCo app -->
+  <node name="aruco_app_node" pkg="a_mods" type="aruco_app.py" required="true" output="screen">
+    <param name="config" value="$(arg config)"/>
+  </node>
+</launch>
