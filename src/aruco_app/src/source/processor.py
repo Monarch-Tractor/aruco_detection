@@ -105,10 +105,15 @@ class ImageProcessor:
         Output:
             - Processed image with detected markers and axes 
                   overlay
+            - Detected marker IDs
+            - Estimated rotation vectors
+            - Estimated translation vectors
         """
         # Resize the image to 1280 x 720 (if enabled).
         if self.resize_image:
-            self.detector.resized_img = cv2.resize(img, (1280, 720))
+            self.detector.resized_img = cv2.resize(
+                img, (1280, 720)
+            )
         else:
             self.detector.resized_img = img
 
@@ -118,15 +123,18 @@ class ImageProcessor:
 
         if ids is not None:
             # Draw detected markers.
-            self.detector.draw_detected_markers(corners=corners)
+            self.detector.draw_detected_markers(
+                corners=corners
+            )
 
             # Estimate poses of detected markers.
-            rvecs, tvecs = self.detector.estimate_pose_multiple(
-                corners=corners,
-                marker_length=self.marker_length,
-                intrinsic_matrix=self.intrinsic_matrix,
-                distortion_vector=self.distortion_vector
-            )
+            rvecs, tvecs = \
+                self.detector.estimate_pose_multiple(
+                    corners=corners,
+                    marker_length=self.marker_length,
+                    intrinsic_matrix=self.intrinsic_matrix,
+                    distortion_vector=self.distortion_vector
+                )
 
             # Post-process each marker image.
             with ThreadPoolExecutor() as executor:
@@ -144,9 +152,9 @@ class ImageProcessor:
 
         return (
             self.detector.resized_img,
-            ids,
-            rvecs,
-            tvecs
+            ids if ids is not None else None,
+            rvecs if ids is not None else None,
+            tvecs if ids is not None else None
         )
 
 
@@ -176,11 +184,11 @@ class PoseProcessor:
                             marker_id,
                             rvec,
                             tvec):
-            """
-            This method is a helper function to process a 
-            single pose.
-            """
-            return marker_id[0], (rvec, tvec)
+        """
+        This method is a helper function to process a 
+        single pose.
+        """
+        return marker_id[0], (rvec, tvec)
 
     def process_pose(self, ids, rvecs, tvecs):
         """
@@ -194,21 +202,28 @@ class PoseProcessor:
             - rvecs: Array of rotation vectors
             - tvecs: Array of translation vectors
         """
-        # Process each pose in parallel.
-        with ThreadPoolExecutor() as executor:
-            results = list(executor.map(
-                self.process_single_pose,
-                ids,
-                rvecs,
-                tvecs
-            ))
-        # Convert results to a dictionary
-        self.relative_poses = dict(results)
-        # Set the camera pose estimate
-        self.camera_pose = self.set_camera_pose_estimate()
+        # Global and relative poses
+        global_pose = None
+        relative_pose = None
 
-        global_pose = self.get_camera_pose_estimate()
-        relative_pose = self.get_relative_pose()
+        # Process the poses only if markers are
+        # detected.
+        if ids is not None:
+            # Process each pose in parallel.
+            with ThreadPoolExecutor() as executor:
+                results = list(executor.map(
+                    self.process_single_pose,
+                    ids,
+                    rvecs,
+                    tvecs
+                ))
+            # Convert results to a dictionary
+            self.relative_poses = dict(results)
+            # Set the camera pose estimate
+            self.camera_pose = self.set_camera_pose_estimate()
+
+            global_pose = self.get_camera_pose_estimate()
+            relative_pose = self.get_relative_pose()
         return global_pose, relative_pose
 
     def get_relative_pose(self):

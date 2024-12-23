@@ -88,6 +88,12 @@ class ArUcoApp:
             ["topics"]["publish"]["relative_pose_topic"]
         self.global_pose_topic = self.config["app_cfg"]["msg_cfg"]\
             ["topics"]["publish"]["global_pose_topic"]
+        
+        # Input data attribute
+        self.a_in = Input()
+
+        # Output data attribute
+        self.a_out = Output()
 
         # Define subscribers and publishers.
         self.set_subscribers()
@@ -114,12 +120,6 @@ class ArUcoApp:
         self.processor = Processor(
             camera=self.camera
         )
-
-        # Input data attribute
-        self.a_in = Input()
-
-        # Output data attribute
-        self.a_out = Output()
 
     def set_subscribers(self):
         """
@@ -176,7 +176,7 @@ class ArUcoApp:
         if msg.data:
             rospy.loginfo("Initializing ArUco pose.")
             rvec, tvec = decode_pose(
-                msg=self.camera_pose
+                msg=self.a_in.camera_pose
             )
             self.processor.initialize_aruco_poses(
                 c_rvec=rvec,
@@ -189,12 +189,12 @@ class ArUcoApp:
     def lookup_static_transform(self):
         """
         This method looks up the static transform from
-        the camera frame to the baselink frame. This
+        the baselink frame to the camera frame. This
         transform is used to estimate the camera pose
         from the odometry data.
         """
         try:
-            self.baselink_to_camera = \
+            self.a_in.baselink_to_camera = \
                 self.tf_buffer.lookup_transform(
                     target_frame=self.baselink_frame_id,
                     source_frame=self.camera_frame_id,
@@ -218,11 +218,11 @@ class ArUcoApp:
         odometry message is received, and the received
         message is used to update the camera pose.
         """
-        self.baselink_pose = msg.pose
-        self.camera_pose = \
+        self.a_in.baselink_pose = msg.pose
+        self.a_in.camera_pose = \
             tf2_geometry_msgs.do_transform_pose(
-                pose=self.baselink_pose,
-                transform=self.baselink_to_camera
+                pose=self.a_in.baselink_pose,
+                transform=self.a_in.baselink_to_camera
             )
         return
 
@@ -308,7 +308,7 @@ class ArUcoApp:
         """
         This method resets the input data attributes.
         """
-        self.a_in.reset()
+        self.a_in.reset(reset_rgb_data=True)
         return
 
     def process(self):
