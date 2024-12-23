@@ -12,8 +12,6 @@ publishes the output as ROS messages.
 
 import yaml
 
-import numpy as np
-
 import rospy
 from std_msgs.msg import Bool
 from sensor_msgs.msg import CompressedImage
@@ -21,7 +19,6 @@ from nav_msgs.msg import Odometry
 
 import tf2_ros
 import tf2_geometry_msgs
-from scipy.spatial.transform import Rotation as R
 
 from source.camera import Camera
 from source.processor import Processor
@@ -88,7 +85,7 @@ class ArUcoApp:
             ["topics"]["publish"]["relative_pose_topic"]
         self.global_pose_topic = self.config["app_cfg"]["msg_cfg"]\
             ["topics"]["publish"]["global_pose_topic"]
-        
+
         # Input data attribute
         self.a_in = Input()
 
@@ -107,8 +104,6 @@ class ArUcoApp:
         self.lookup_static_transform()
 
         self.aruco_poses = {}
-
-        # TODO: Add methods for estimating the camera pose from detected markers
 
         # Get camera instance.
         self.camera = Camera(
