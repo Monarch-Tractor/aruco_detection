@@ -278,18 +278,9 @@ class PoseProcessor:
         on the detected ArUco markers.
         """
         ids = list(self.global_poses.keys())
-        print(f"IDs: {ids}")  # DEB
-        print("-" * 75)  # DEB
-        print("-" * 75)  # DEB
         for id_ in ids:
             if id_ in self.relative_poses:
                 rvec, tvec = self.relative_poses[id_]
-                print(f"id_: {id_}")  # DEB
-                print(f"rvec: \n{rvec}")  # DEB
-                print(f"tvec: \n{tvec}")  # DEB
-                print(f"rvec_global_object: \n{self.global_poses[id_]}")  # DEB
-                print(f"tvec_global_object: \n{self.global_poses[id_]}")  # DEB
-                print("-" * 75)  # DEB
                 c_rvec, c_tvec = \
                     transform_camera_to_global(
                         rvec_object_camera=rvec,
@@ -359,14 +350,14 @@ class Processor:
             self.image_processor.process_image(img=img)
 
         # Process the pose.
-        global_pose, reltaive_pose = \
+        global_pose, relative_pose = \
             self.pose_processor.process_pose(
                 ids=ids,
                 rvecs=rvecs,
                 tvecs=tvecs
             )
 
-        return rgb_out, global_pose, reltaive_pose
+        return rgb_out, global_pose, relative_pose
 
 
 # Main driver code

@@ -1,3 +1,9 @@
+"""
+This script defines the input and output structures
+for the ArUco application.
+"""
+
+
 class Input:
     """
     This class defines the input structure for the ArUco

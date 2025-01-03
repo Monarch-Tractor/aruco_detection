@@ -64,6 +64,10 @@ class ArUcoApp:
         self.rate_hz = self.config["app_cfg"]["loop_rate"]
         # Camera name
         self.camera_name = self.config["app_cfg"]["camera_name"]
+        # Resize image flag
+        self.resize_image = self.config["app_cfg"]["resize_image"]
+        # Marker length
+        self.marker_length = self.config["app_cfg"]["marker_length"]
         # Frame IDs
         self.camera_frame_id = self.config["app_cfg"]["camera_frame_id"]
         self.baselink_frame_id = self.config["app_cfg"]["baselink_frame_id"]
@@ -110,10 +114,11 @@ class ArUcoApp:
             camera_name=self.camera_name,
             camera_info_topic=self.camera_info_topic
         )
-
         # Processor instance
         self.processor = Processor(
-            camera=self.camera
+            camera=self.camera,
+            resize_image=self.resize_image,
+            marker_length=self.marker_length
         )
 
     def set_subscribers(self):

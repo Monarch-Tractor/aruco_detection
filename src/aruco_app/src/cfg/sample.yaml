@@ -1,6 +1,8 @@
 "app_cfg":
     "loop_rate": 10
     "camera_name": "zed_front"
+    "resize_image": False
+    "marker_length": 0.05
     "camera_frame_id": "zed_front_left_img"
     "baselink_frame_id": "base_link"
     
