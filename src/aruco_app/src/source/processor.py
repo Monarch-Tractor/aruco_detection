@@ -224,6 +224,7 @@ class PoseProcessor:
 
             global_pose = self.get_camera_pose_estimate()
             relative_pose = self.get_relative_pose()
+
         return global_pose, relative_pose
 
     def get_relative_pose(self):

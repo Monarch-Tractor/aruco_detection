@@ -178,12 +178,12 @@ class ArUcoApp:
             rvec, tvec = decode_pose(
                 msg=self.a_in.camera_pose
             )
-            self.processor.initialize_aruco_poses(
+            self.processor.pose_processor.initialize_aruco_poses(
                 c_rvec=rvec,
                 c_tvec=tvec
             )
             self.aruco_poses = \
-                self.processor.get_global_poses()
+                self.processor.pose_processor.get_global_poses()
         return
 
     def lookup_static_transform(self):
@@ -219,11 +219,12 @@ class ArUcoApp:
         message is used to update the camera pose.
         """
         self.a_in.baselink_pose = msg.pose
-        self.a_in.camera_pose = \
-            tf2_geometry_msgs.do_transform_pose(
-                pose=self.a_in.baselink_pose,
-                transform=self.a_in.baselink_to_camera
-            )
+        if self.a_in.baselink_to_camera is not None:
+            self.a_in.camera_pose = \
+                tf2_geometry_msgs.do_transform_pose(
+                    pose=self.a_in.baselink_pose,
+                    transform=self.a_in.baselink_to_camera
+                )
         return
 
 

@@ -95,22 +95,22 @@ def decode_pose(msg):
     """
     # Extract the quaternion from the pose message.
     quaternion = np.array([
-        msg.orientation.x,
-        msg.orientation.y,
-        msg.orientation.z,
-        msg.orientation.w
+        msg.pose.orientation.x,
+        msg.pose.orientation.y,
+        msg.pose.orientation.z,
+        msg.pose.orientation.w
     ])
 
     # Convert the quaternion to a rotation vector.
     rotation = R.from_quat(quaternion)
-    rvec = rotation.as_rotvec()
+    rvec = rotation.as_rotvec().reshape(3, 1)
 
     # Extract the translation vector from the pose message.
     tvec = np.array([
-        msg.position.x,
-        msg.position.y,
-        msg.position.z
-    ])
+        msg.pose.position.x,
+        msg.pose.position.y,
+        msg.pose.position.z
+    ]).reshape(3, 1)
 
     return rvec, tvec
 
@@ -193,7 +193,7 @@ def transform_object_to_global(rvec_camera,
     r_object_global = r_camera @ r_object_camera
 
     # Compute global translation.
-    t_object_global = r_camera @ tvec_object_camera + tvec_camera
+    t_object_global = r_camera @ (tvec_object_camera + tvec_camera)
 
     # Convert rotation matrix back to rvec.
     rvec_object_global, _ = cv2.Rodrigues(r_object_global)
