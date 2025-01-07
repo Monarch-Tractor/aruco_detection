@@ -217,30 +217,45 @@ class PoseProcessor:
                     rvecs,
                     tvecs
                 ))
-            # Convert results to a dictionary
+            # Convert results to a dictionary.
             self.relative_poses = dict(results)
-            # Set the camera pose estimate
-            self.camera_pose = self.set_camera_pose_estimate()
 
+            # Get the ID of marker farthest to the camera.
+            max_id = self.get_farthest_marker_id()
+
+            # Get the relative pose of the farthest marker.
+            relative_pose = self.get_relative_pose(
+                max_id=max_id
+            )
+
+            # Set the camera pose estimate.
+            self.camera_pose = self.set_camera_pose_estimate(
+                max_id=max_id
+            )
+            # Get the global pose of the farthest marker.
             global_pose = self.get_camera_pose_estimate()
-            relative_pose = self.get_relative_pose()
 
-        return global_pose, relative_pose
+        return relative_pose, global_pose
 
-    def get_relative_pose(self):
+    def get_farthest_marker_id(self):
+        """
+        This method returns the ID of the marker which
+        is farthest to the camera.
+        """
+        max_id = max(
+            self.relative_poses,
+            key=lambda x: self.relative_poses[x][1][2]
+        )
+        return max_id
+
+    def get_relative_pose(self, max_id):
         """
         This method returns the relative pose of the 
         detected markers which is closest to the camera.
         """
-        # Find the marker with the minimum relative
-        # z-distance.
-        min_id = max(
-            self.relative_poses,
-            key=lambda x: self.relative_poses[x][1][2]
-        )
         # Get the pose of the marker with the minimum
         # relative z-distance.
-        target_relative_pose = self.relative_poses[min_id]
+        target_relative_pose = self.relative_poses[max_id]
         # Encode the pose as a Pose message.
         target_relative_pose = encode_pose(
             rvec=target_relative_pose[0],
@@ -273,26 +288,25 @@ class PoseProcessor:
         """
         return self.global_poses
 
-    def set_camera_pose_estimate(self):
+    def set_camera_pose_estimate(self, max_id):
         """
         This method returns the camera pose estimate based 
         on the detected ArUco markers.
         """
         ids = list(self.global_poses.keys())
-        for id_ in ids:
-            if id_ in self.relative_poses:
-                rvec, tvec = self.relative_poses[id_]
-                c_rvec, c_tvec = \
-                    transform_camera_to_global(
-                        rvec_object_camera=rvec,
-                        tvec_object_camera=tvec,
-                        rvec_object_global=self.global_poses[id_][0],
-                        tvec_object_global=self.global_poses[id_][1]
-                    )
-                self.camera_pose = encode_pose(
-                    rvec=c_rvec,
-                    tvec=c_tvec
+        if max_id in ids:
+            rvec, tvec = self.relative_poses[max_id]
+            c_rvec, c_tvec = \
+                transform_camera_to_global(
+                    rvec_object_camera=rvec,
+                    tvec_object_camera=tvec,
+                    rvec_object_global=self.global_poses[max_id][0],
+                    tvec_object_global=self.global_poses[max_id][1]
                 )
+            self.camera_pose = encode_pose(
+                rvec=c_rvec,
+                tvec=c_tvec
+            )
         return self.camera_pose
 
     def get_camera_pose_estimate(self):
@@ -351,14 +365,14 @@ class Processor:
             self.image_processor.process_image(img=img)
 
         # Process the pose.
-        global_pose, relative_pose = \
+        relative_pose, global_pose = \
             self.pose_processor.process_pose(
                 ids=ids,
                 rvecs=rvecs,
                 tvecs=tvecs
             )
 
-        return rgb_out, global_pose, relative_pose
+        return rgb_out, relative_pose, global_pose
 
 
 # Main driver code

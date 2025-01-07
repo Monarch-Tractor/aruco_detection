@@ -93,24 +93,27 @@ def decode_pose(msg):
     This method decodes a geometry_msgs/Pose message
     into a rotation vector and translation vector.
     """
-    # Extract the quaternion from the pose message.
-    quaternion = np.array([
-        msg.pose.orientation.x,
-        msg.pose.orientation.y,
-        msg.pose.orientation.z,
-        msg.pose.orientation.w
-    ])
+    rvec, tvec = None, None
 
-    # Convert the quaternion to a rotation vector.
-    rotation = R.from_quat(quaternion)
-    rvec = rotation.as_rotvec().reshape(3, 1)
+    if msg is not None:
+        # Extract the quaternion from the pose message.
+        quaternion = np.array([
+            msg.pose.orientation.x,
+            msg.pose.orientation.y,
+            msg.pose.orientation.z,
+            msg.pose.orientation.w
+        ])
 
-    # Extract the translation vector from the pose message.
-    tvec = np.array([
-        msg.pose.position.x,
-        msg.pose.position.y,
-        msg.pose.position.z
-    ]).reshape(3, 1)
+        # Convert the quaternion to a rotation vector.
+        rotation = R.from_quat(quaternion)
+        rvec = rotation.as_rotvec().reshape(3, 1)
+
+        # Extract the translation vector from the pose message.
+        tvec = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z
+        ]).reshape(3, 1)
 
     return rvec, tvec
 

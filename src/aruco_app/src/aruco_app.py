@@ -96,10 +96,6 @@ class ArUcoApp:
         # Output data attribute
         self.a_out = Output()
 
-        # Define subscribers and publishers.
-        self.set_subscribers()
-        self.set_publishers()
-
         # Initialize the tf buffer.
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(
@@ -120,6 +116,10 @@ class ArUcoApp:
             resize_image=self.resize_image,
             marker_length=self.marker_length
         )
+
+        # Define subscribers and publishers.
+        self.set_subscribers()
+        self.set_publishers()
 
     def set_subscribers(self):
         """
@@ -245,8 +245,8 @@ class ArUcoApp:
 
     def encode_output(self,
                       rgb_data,
-                      global_pose,
-                      relative_pose):
+                      relative_pose,
+                      global_pose):
         """
         This method encodes the output data into ROS
         messages.
@@ -256,21 +256,13 @@ class ArUcoApp:
 
         # Initialize the encoded output attributes.
         encoded_rgb_data = None
-        encoded_global_pose = None
         encoded_relative_pose = None
+        encoded_global_pose = None
 
         # Encode the output image.
         if rgb_data is not None:
             encoded_rgb_data = encode_image(
                 img=rgb_data,
-                timestamp=timestamp
-            )
-        # Encode the global pose.
-        if global_pose is not None:
-            encoded_global_pose = encode_odometry(
-                pose=global_pose,
-                frame_id="map",
-                child_frame_id="zed_front_left_img",
                 timestamp=timestamp
             )
         # Encode the relative pose.
@@ -281,11 +273,19 @@ class ArUcoApp:
                 child_frame_id="zed_front_left_img",
                 timestamp=timestamp
             )
+        # Encode the global pose.
+        if global_pose is not None:
+            encoded_global_pose = encode_odometry(
+                pose=global_pose,
+                frame_id="map",
+                child_frame_id="zed_front_left_img",
+                timestamp=timestamp
+            )
 
         return (
             encoded_rgb_data,
-            encoded_global_pose,
-            encoded_relative_pose
+            encoded_relative_pose,
+            encoded_global_pose
         )
 
     def run(self):
@@ -323,8 +323,8 @@ class ArUcoApp:
             # output image with detected ArUco markers'
             # Id s and poses.
             rgb_out, \
-            global_pose, \
-            relative_pose = self.processor.process(
+            relative_pose, \
+            global_pose = self.processor.process(
                 img=self.a_in.rgb_data
             )
 
@@ -333,11 +333,11 @@ class ArUcoApp:
 
             # Encode the processor's outputs.
             encoded_rgb_out, \
-            encoded_global_pose, \
-            encoded_relative_pose = self.encode_output(
+            encoded_relative_pose, \
+            encoded_global_pose = self.encode_output(
                 rgb_data=rgb_out,
-                global_pose=global_pose,
-                relative_pose=relative_pose
+                relative_pose=relative_pose,
+                global_pose=global_pose
             )
 
             # Publish the encoded output messages.
@@ -345,13 +345,13 @@ class ArUcoApp:
                 self.rgb_pub.publish(
                     encoded_rgb_out
                 )
-            if encoded_global_pose is not None:
-                self.global_pose_pub.publish(
-                    encoded_global_pose
-                )
             if encoded_relative_pose is not None:
                 self.relative_pose_pub.publish(
                     encoded_relative_pose
+                )
+            if encoded_global_pose is not None:
+                self.global_pose_pub.publish(
+                    encoded_global_pose
                 )
 
         return
