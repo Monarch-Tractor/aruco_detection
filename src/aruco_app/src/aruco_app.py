@@ -227,7 +227,6 @@ class ArUcoApp:
                 )
         return
 
-
     def rgb_topic_callback(self, rgb_msg):
         """
         This method decodes an incoming compressed image
