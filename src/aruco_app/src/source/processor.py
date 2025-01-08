@@ -220,42 +220,42 @@ class PoseProcessor:
             # Convert results to a dictionary.
             self.relative_poses = dict(results)
 
-            # Get the ID of marker farthest to the camera.
-            max_id = self.get_farthest_marker_id()
+            # Get the ID of marker closest to the camera.
+            min_id = self.get_closest_marker_id()
 
-            # Get the relative pose of the farthest marker.
+            # Get the relative pose of the closest marker.
             relative_pose = self.get_relative_pose(
-                max_id=max_id
+                min_id=min_id
             )
 
             # Set the camera pose estimate.
             self.camera_pose = self.set_camera_pose_estimate(
-                max_id=max_id
+                min_id=min_id
             )
-            # Get the global pose of the farthest marker.
+            # Get the global pose of the closest marker.
             global_pose = self.get_camera_pose_estimate()
 
         return relative_pose, global_pose
 
-    def get_farthest_marker_id(self):
+    def get_closest_marker_id(self):
         """
         This method returns the ID of the marker which
-        is farthest to the camera.
+        is closest to the camera.
         """
-        max_id = max(
+        min_id = max(
             self.relative_poses,
             key=lambda x: self.relative_poses[x][1][2]
         )
-        return max_id
+        return min_id
 
-    def get_relative_pose(self, max_id):
+    def get_relative_pose(self, min_id):
         """
         This method returns the relative pose of the 
         detected markers which is closest to the camera.
         """
         # Get the pose of the marker with the minimum
         # relative z-distance.
-        target_relative_pose = self.relative_poses[max_id]
+        target_relative_pose = self.relative_poses[min_id]
         # Encode the pose as a Pose message.
         target_relative_pose = encode_pose(
             rvec=target_relative_pose[0],
@@ -288,20 +288,20 @@ class PoseProcessor:
         """
         return self.global_poses
 
-    def set_camera_pose_estimate(self, max_id):
+    def set_camera_pose_estimate(self, min_id):
         """
         This method returns the camera pose estimate based 
         on the detected ArUco markers.
         """
         ids = list(self.global_poses.keys())
-        if max_id in ids:
-            rvec, tvec = self.relative_poses[max_id]
+        if min_id in ids:
+            rvec, tvec = self.relative_poses[min_id]
             c_rvec, c_tvec = \
                 transform_camera_to_global(
                     rvec_object_camera=rvec,
                     tvec_object_camera=tvec,
-                    rvec_object_global=self.global_poses[max_id][0],
-                    tvec_object_global=self.global_poses[max_id][1]
+                    rvec_object_global=self.global_poses[min_id][0],
+                    tvec_object_global=self.global_poses[min_id][1]
                 )
             self.camera_pose = encode_pose(
                 rvec=c_rvec,
